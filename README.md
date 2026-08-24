@@ -50,16 +50,25 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
   your own Jost `FontFamily` to `h2g2Type()` for the exact original look.
 - **`H2g2Surface`** (`Surfaces.kt`) -- the three-shape vocabulary: `recordTile`, `note`, `capsule`
   (nearly everything ends up `capsule`).
-- **`Templates`** (`Templates.kt`) -- the `templateId` registry. Two templates so far:
-  `h2g2.tile.record` (a `recordTile`-shaped element) and `h2g2.pill.action` (a `capsule`-shaped
-  one) -- both `Offer`-backed, hue-colored via `hueOf`, type-set via `h2g2Type().step(scale)`.
+- **`H2g2Page`** (`Page.kt`) -- the one-line convenience for painting a `Ground` behind a whole
+  screen. Deliberately **not** a `Templates.registry` entry: every composable manifest element
+  requires a non-empty `act` (azphalt `spec/composable.md`), and a page background isn't an
+  actionable control -- `Ground`/`GroundState`/`Modifier.ground` (`Grounds.kt`) are already a
+  complete, directly callable API; this just wraps the common case.
+- **`Templates`** (`Templates.kt`) -- the `templateId` registry. Three templates:
+  `h2g2.tile.record` (a `recordTile`-shaped element, one line or a title+`subtitle` two-line
+  form), `h2g2.tile.note` (a `note`-shaped element, an `eyebrow`-step `subtitle` label *above*
+  the body line -- a note is labeled before it's read, not captioned after), and
+  `h2g2.pill.action` (a `capsule`-shaped element) -- all `Offer`-backed, hue-colored via `hueOf`,
+  type-set via `h2g2Type().step(scale)`.
 
 ## Status
 
-A first real slice, not a finished set. Two templates exist; h2g2's actual visual range is much
-wider than that (ground backgrounds aren't wired into a template yet, `note` has none, and there's
-only one label-only layout per shape). More templates, and Jost as the actual default rather than
-an opt-in, are the natural next additions.
+Covers h2g2's full surface vocabulary (all three shapes now have a template) and both of its
+common content layouts (title-only, title+detail). What's still not here: more than one
+layout/act pairing per shape (e.g. a record tile with a leading avatar), and Jost as the actual
+default rather than an opt-in -- bundling that typeface's font files remains a per-host asset
+decision this library doesn't make for you.
 
 ## Using it
 
