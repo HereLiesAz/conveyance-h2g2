@@ -44,6 +44,20 @@ object H2g2 {
         return h % hues.size
     }
 
+    /**
+     * Resolves a manifest `hue` value to a [hues] index -- an exact [hueNames] match first (so
+     * `"violet"` really renders violet, matching azphalt `spec/composable.md`'s own example of a
+     * `hue` value being "one of a host's fourteen named hues"), falling back to [hueOf]'s hash
+     * for anything else (an element id, a subject key, or any string that isn't one of the 14
+     * names). Templates in this library resolve `hueSeed` through this, not [hueOf] directly, so
+     * an author who happens to know and name a real hue gets it, while an author who just wants
+     * "some consistent color for this id" still gets that.
+     */
+    fun indexOf(seed: String): Int {
+        val named = hueNames.indexOf(seed)
+        return if (named >= 0) named else hueOf(seed)
+    }
+
     private const val LEGIBLE_LUMINANCE_SPLIT = 0.35f
 
     /** [ink] or [white], whichever reads legibly against this color. */

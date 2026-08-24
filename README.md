@@ -69,10 +69,11 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
   element, an `eyebrow`-step `subtitle` label *above* the body line -- a note is labeled before
   it's read, not captioned after), `h2g2.pill.action` (a plain `capsule`-shaped element), and
   `h2g2.pill.capped` (a `capsule` with `endCapText`) -- all `Offer`-backed, hue-colored via
-  `hueOf`, type-set via `h2g2Type().step(scale)`. The two `.capped` templates are the first to use
-  `H2g2.caps` and the `endCap` type step, both previously ported but unused -- `docs/DESIGN.md`
-  §2's own "label and end-cap sit together at the right end... darker mate on the end-cap," read
-  for a natural-width tile/pill rather than the pill menu's own anchored, overhung ones.
+  `indexOf`, type-set via `h2g2Type().step(scale)`. The two `.capped` templates are the first to
+  use `H2g2.caps` and the `endCap` type step, both previously ported but unused -- `docs/DESIGN.md`
+  §2's own "label and end-cap sit together at the right end," read for a natural-width tile/pill
+  rather than the pill menu's own anchored, overhung ones, with the "darker mate on the end-cap"
+  coloring from §7 ("Unchanged from Azphalt") layered on top.
 
 ## Status
 
@@ -85,6 +86,14 @@ source app's own vocabulary doesn't obviously call for (a note is small and self
 end-cap is a pill-menu/record-tile pattern for a "further detail rides the right end" reading, and
 forcing it onto every shape regardless of whether the source app actually uses it there is exactly
 the kind of unreconciled addition this port has tried to avoid).
+
+An adversarial audit found and this repo has since fixed two real defects: every template's
+`Offer` was missing `Modifier.tell(owesTell, weight).clickable { engage() }` -- every element
+rendered but was inert, since nothing ever engaged the act on tap (matches
+`conveyance-demo/.../Gallery.kt`'s own wiring now); and `hueSeed` resolution went straight to
+`H2g2.hueOf`'s hash, so a manifest author naming a real hue (`"hue": "violet"`) never actually got
+violet -- `H2g2.indexOf` now checks `hueNames` for an exact match first, falling back to the hash
+for anything else.
 
 ## Using it
 
