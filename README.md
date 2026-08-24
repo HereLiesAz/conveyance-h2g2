@@ -61,21 +61,30 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
   requires a non-empty `act` (azphalt `spec/composable.md`), and a page background isn't an
   actionable control -- `Ground`/`GroundState`/`Modifier.ground` (`Grounds.kt`) are already a
   complete, directly callable API; this just wraps the common case.
-- **`Templates`** (`Templates.kt`) -- the `templateId` registry. Four templates:
+- **`Templates`** (`Templates.kt`) -- the `templateId` registry. Six templates:
   `h2g2.tile.record` (a `recordTile`-shaped element, one line or a title+`subtitle` two-line
   form), `h2g2.tile.record.detail` (a `recordTile` with a nested `well` holding
-  `detailLines` -- the raw-output-panel pattern from the mockups), `h2g2.tile.note` (a
-  `note`-shaped element, an `eyebrow`-step `subtitle` label *above* the body line -- a note is
-  labeled before it's read, not captioned after), and `h2g2.pill.action` (a `capsule`-shaped
-  element) -- all `Offer`-backed, hue-colored via `hueOf`, type-set via `h2g2Type().step(scale)`.
+  `detailLines` -- the raw-output-panel pattern from the mockups), `h2g2.tile.record.capped` (a
+  `recordTile` with `endCapText` riding the right end), `h2g2.tile.note` (a `note`-shaped
+  element, an `eyebrow`-step `subtitle` label *above* the body line -- a note is labeled before
+  it's read, not captioned after), `h2g2.pill.action` (a plain `capsule`-shaped element), and
+  `h2g2.pill.capped` (a `capsule` with `endCapText`) -- all `Offer`-backed, hue-colored via
+  `hueOf`, type-set via `h2g2Type().step(scale)`. The two `.capped` templates are the first to use
+  `H2g2.caps` and the `endCap` type step, both previously ported but unused -- `docs/DESIGN.md`
+  §2's own "label and end-cap sit together at the right end... darker mate on the end-cap," read
+  for a natural-width tile/pill rather than the pill menu's own anchored, overhung ones.
 
 ## Status
 
-Covers h2g2's full surface vocabulary -- all four shapes, including `well`, now have a template --
-and its common content layouts (title-only, title+detail, title+raw-output-well). What's still
-not here: more than one layout/act pairing per shape (e.g. a record tile with a leading avatar),
-and Jost as the actual default rather than an opt-in -- bundling that typeface's font files
-remains a per-host asset decision this library doesn't make for you.
+Covers h2g2's full surface vocabulary (all four shapes have a template) and, per shape, more than
+one act/layout pairing where a real pattern from the source app justified it: a record tile can
+carry a nested well, an end-cap, or neither. What's still not here: Jost as the actual default
+rather than an opt-in -- bundling that typeface's font files remains a per-host asset decision
+this library doesn't make for you -- and a `.capped` variant of `h2g2.tile.note`, which the
+source app's own vocabulary doesn't obviously call for (a note is small and self-contained; an
+end-cap is a pill-menu/record-tile pattern for a "further detail rides the right end" reading, and
+forcing it onto every shape regardless of whether the source app actually uses it there is exactly
+the kind of unreconciled addition this port has tried to avoid).
 
 ## Using it
 

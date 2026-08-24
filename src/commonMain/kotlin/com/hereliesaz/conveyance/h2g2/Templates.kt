@@ -3,6 +3,7 @@ package com.hereliesaz.conveyance.h2g2
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.text.BasicText
@@ -22,7 +23,10 @@ import com.hereliesaz.conveyance.h2g2.H2g2.contrastingText
  * straight through as [hueSeed]/[surface]/[scale]; `templateId` is the registry lookup key and
  * isn't repeated here. [subtitle] is optional -- most templates render [label] alone; the ones
  * that use a second line say so. [detailLines] is likewise optional -- only
- * `h2g2.tile.record.detail` uses it.
+ * `h2g2.tile.record.detail` uses it. [endCapText], when present, renders trailing the label in
+ * `H2g2.caps`' darker mate and the `endCap` type step -- `docs/DESIGN.md`'s own "label and
+ * end-cap sit together at the right end... darker mate on the end-cap," on the two templates
+ * whose names say `.capped`.
  */
 data class ComposableRequest(
     val act: Act,
@@ -33,6 +37,7 @@ data class ComposableRequest(
     val label: String,
     val subtitle: String? = null,
     val detailLines: List<String>? = null,
+    val endCapText: String? = null,
 )
 
 /**
@@ -45,8 +50,10 @@ object Templates {
     val registry: Map<String, @Composable (ComposableRequest) -> Unit> = mapOf(
         "h2g2.tile.record" to { request -> RecordTile(request) },
         "h2g2.tile.record.detail" to { request -> RecordTileWithWell(request) },
+        "h2g2.tile.record.capped" to { request -> CappedRecordTile(request) },
         "h2g2.tile.note" to { request -> NoteTile(request) },
         "h2g2.pill.action" to { request -> ActionPill(request) },
+        "h2g2.pill.capped" to { request -> CappedPill(request) },
     )
 }
 
@@ -180,6 +187,83 @@ fun ActionPill(request: ComposableRequest) {
                 text = request.label,
                 style = h2g2Type().step(request.scale).copy(color = hue.contrastingText()),
             )
+        }
+    }
+}
+
+/**
+ * A small capsule chip in [H2g2.caps]' darker mate of the surrounding hue, set in the `endCap`
+ * type step -- the trailing element `docs/DESIGN.md` describes riding at the right end alongside
+ * a label, never on its own.
+ */
+@Composable
+private fun EndCap(text: String, hueIndex: Int) {
+    val cap = H2g2.caps[hueIndex]
+    Box(
+        modifier = Modifier
+            .clip(H2g2Surface.capsule)
+            .background(cap)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        BasicText(text = text, style = h2g2Type().endCap.copy(color = cap.contrastingText()))
+    }
+}
+
+/**
+ * [ActionPill] with [ComposableRequest.endCapText] riding the right end in [H2g2.caps]' darker
+ * mate -- `docs/DESIGN.md` §2's "label and end-cap sit together at the right end, in that order,"
+ * read for a natural-width pill rather than the pill menu's own anchored/overhung ones. Falls
+ * back to plain [ActionPill] layout when [ComposableRequest.endCapText] is null.
+ */
+@Composable
+fun CappedPill(request: ComposableRequest) {
+    val hueIndex = H2g2.hueOf(request.hueSeed)
+    val hue = H2g2.hues[hueIndex]
+    Offer(act = request.act, modifier = Modifier.wrapContentSize()) {
+        Row(
+            modifier = Modifier
+                .clip(H2g2Surface.capsule)
+                .background(hue)
+                .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = if (request.endCapText != null) 6.dp else 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicText(
+                text = request.label,
+                style = h2g2Type().step(request.scale).copy(color = hue.contrastingText()),
+            )
+            request.endCapText?.let {
+                Box(modifier = Modifier.padding(start = 10.dp)) { EndCap(it, hueIndex) }
+            }
+        }
+    }
+}
+
+/**
+ * [RecordTile] with [ComposableRequest.endCapText] riding the tile's own right end in
+ * [H2g2.caps]' darker mate -- the same end-cap vocabulary [CappedPill] uses, applied to the
+ * record tile shape rather than the capsule. Falls back to plain [RecordTile] layout when
+ * [ComposableRequest.endCapText] is null.
+ */
+@Composable
+fun CappedRecordTile(request: ComposableRequest) {
+    val hueIndex = H2g2.hueOf(request.hueSeed)
+    val hue = H2g2.hues[hueIndex]
+    val textColor = hue.contrastingText()
+    Offer(act = request.act, modifier = Modifier.wrapContentSize()) {
+        Row(
+            modifier = Modifier
+                .clip(H2g2Surface.recordTile)
+                .background(hue)
+                .padding(start = 20.dp, top = 14.dp, bottom = 14.dp, end = if (request.endCapText != null) 10.dp else 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BasicText(
+                text = request.label,
+                style = h2g2Type().step(request.scale).copy(color = textColor),
+            )
+            request.endCapText?.let {
+                Box(modifier = Modifier.padding(start = 12.dp)) { EndCap(it, hueIndex) }
+            }
         }
     }
 }
