@@ -21,7 +21,8 @@ import com.hereliesaz.conveyance.h2g2.H2g2.contrastingText
  * live [Act] the element performs. The manifest's own `hue`/`surface`/`scale` strings pass
  * straight through as [hueSeed]/[surface]/[scale]; `templateId` is the registry lookup key and
  * isn't repeated here. [subtitle] is optional -- most templates render [label] alone; the ones
- * that use a second line say so.
+ * that use a second line say so. [detailLines] is likewise optional -- only
+ * `h2g2.tile.record.detail` uses it.
  */
 data class ComposableRequest(
     val act: Act,
@@ -31,6 +32,7 @@ data class ComposableRequest(
     val scale: String,
     val label: String,
     val subtitle: String? = null,
+    val detailLines: List<String>? = null,
 )
 
 /**
@@ -42,6 +44,7 @@ data class ComposableRequest(
 object Templates {
     val registry: Map<String, @Composable (ComposableRequest) -> Unit> = mapOf(
         "h2g2.tile.record" to { request -> RecordTile(request) },
+        "h2g2.tile.record.detail" to { request -> RecordTileWithWell(request) },
         "h2g2.tile.note" to { request -> NoteTile(request) },
         "h2g2.pill.action" to { request -> ActionPill(request) },
     )
@@ -80,6 +83,46 @@ fun RecordTile(request: ComposableRequest) {
                         text = request.subtitle,
                         style = h2g2Type().body.copy(color = textColor),
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A [H2g2Surface.recordTile] card with a nested [H2g2Surface.well] holding
+ * [ComposableRequest.detailLines] -- the ink-background raw-output panel HG2Gui itself nests
+ * inside a record tile for command results, network status, a context switch's confirmation
+ * (`docs/HG2Gui Surfaces.dc.html`). Falls back to a labeled [H2g2Surface.recordTile] with no well
+ * when [ComposableRequest.detailLines] is null or empty.
+ */
+@Composable
+fun RecordTileWithWell(request: ComposableRequest) {
+    val hue = H2g2.hues[H2g2.hueOf(request.hueSeed)]
+    val textColor = hue.contrastingText()
+    val lines = request.detailLines
+    Offer(act = request.act, modifier = Modifier.wrapContentSize()) {
+        Column(
+            modifier = Modifier
+                .clip(H2g2Surface.recordTile)
+                .background(hue)
+                .padding(20.dp),
+        ) {
+            BasicText(
+                text = request.label,
+                style = h2g2Type().step(request.scale).copy(color = textColor),
+            )
+            if (!lines.isNullOrEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .clip(H2g2Surface.well)
+                        .background(H2g2.ink)
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                ) {
+                    lines.forEach { line ->
+                        BasicText(text = line, style = h2g2Type().body.copy(color = H2g2.white))
+                    }
                 }
             }
         }

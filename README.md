@@ -48,27 +48,34 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
   Defaults to `FontFamily.Default`; the original uses Jost specifically, but bundling that
   typeface's font files is a per-host asset decision this library doesn't make for you -- pass
   your own Jost `FontFamily` to `h2g2Type()` for the exact original look.
-- **`H2g2Surface`** (`Surfaces.kt`) -- the three-shape vocabulary: `recordTile`, `note`, `capsule`
-  (nearly everything ends up `capsule`).
+- **`H2g2Surface`** (`Surfaces.kt`) -- **four** shapes: `recordTile`/`note`, from the source-code
+  `AzphaltSurface` object, plus `well` (18dp) -- a shape that object doesn't name, but the actual
+  design mockups (`docs/HG2Gui Surfaces.dc.html`) use consistently: an ink-background container
+  for raw/monospace output, nested inside a `recordTile` or standing on its own. Everything else
+  is the fully-rounded `capsule`. `note` is not a lesser shape despite one design doc
+  (`docs/DESIGN.md`, which is scoped to the pill menu specifically) suggesting otherwise -- the
+  file explorer's own `folderTileShape(isOpen, width)` picks between all three of
+  `recordTile`/`note`/`capsule` by state and size, treating them as equally deliberate.
 - **`H2g2Page`** (`Page.kt`) -- the one-line convenience for painting a `Ground` behind a whole
   screen. Deliberately **not** a `Templates.registry` entry: every composable manifest element
   requires a non-empty `act` (azphalt `spec/composable.md`), and a page background isn't an
   actionable control -- `Ground`/`GroundState`/`Modifier.ground` (`Grounds.kt`) are already a
   complete, directly callable API; this just wraps the common case.
-- **`Templates`** (`Templates.kt`) -- the `templateId` registry. Three templates:
+- **`Templates`** (`Templates.kt`) -- the `templateId` registry. Four templates:
   `h2g2.tile.record` (a `recordTile`-shaped element, one line or a title+`subtitle` two-line
-  form), `h2g2.tile.note` (a `note`-shaped element, an `eyebrow`-step `subtitle` label *above*
-  the body line -- a note is labeled before it's read, not captioned after), and
-  `h2g2.pill.action` (a `capsule`-shaped element) -- all `Offer`-backed, hue-colored via `hueOf`,
-  type-set via `h2g2Type().step(scale)`.
+  form), `h2g2.tile.record.detail` (a `recordTile` with a nested `well` holding
+  `detailLines` -- the raw-output-panel pattern from the mockups), `h2g2.tile.note` (a
+  `note`-shaped element, an `eyebrow`-step `subtitle` label *above* the body line -- a note is
+  labeled before it's read, not captioned after), and `h2g2.pill.action` (a `capsule`-shaped
+  element) -- all `Offer`-backed, hue-colored via `hueOf`, type-set via `h2g2Type().step(scale)`.
 
 ## Status
 
-Covers h2g2's full surface vocabulary (all three shapes now have a template) and both of its
-common content layouts (title-only, title+detail). What's still not here: more than one
-layout/act pairing per shape (e.g. a record tile with a leading avatar), and Jost as the actual
-default rather than an opt-in -- bundling that typeface's font files remains a per-host asset
-decision this library doesn't make for you.
+Covers h2g2's full surface vocabulary -- all four shapes, including `well`, now have a template --
+and its common content layouts (title-only, title+detail, title+raw-output-well). What's still
+not here: more than one layout/act pairing per shape (e.g. a record tile with a leading avatar),
+and Jost as the actual default rather than an opt-in -- bundling that typeface's font files
+remains a per-host asset decision this library doesn't make for you.
 
 ## Using it
 
