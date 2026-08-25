@@ -40,8 +40,12 @@ object H2g2 {
 
     /** Deterministically maps any identifier to a [hues] index -- same id, same hue, every time. */
     fun hueOf(id: String): Int {
-        val h = id.hashCode().let { if (it < 0) -it else it }
-        return h % hues.size
+        // `mod`, not `%`: Int.MIN_VALUE has no positive two's-complement negation
+        // (-Int.MIN_VALUE overflows back to itself), so a naive "negate if negative" can still
+        // hand `%` a negative dividend and throw IndexOutOfBoundsException. `mod` always returns
+        // a non-negative result for a positive divisor, sidestepping that entirely -- the same
+        // fix already applied to LiquidHue.of and BacteriumHue.of this session.
+        return id.hashCode().mod(hues.size)
     }
 
     /**
