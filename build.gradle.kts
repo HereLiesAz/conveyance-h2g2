@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kmp.library)
@@ -18,6 +20,9 @@ kotlin {
         minSdk = libs.versions.minSdk.get().toInt()
     }
     jvm("desktop")
+    js { browser() }
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs { browser() }
 
     sourceSets {
         commonMain.dependencies {
@@ -27,6 +32,7 @@ kotlin {
             api("com.github.HereLiesAz.Conveyance:conveyance-compose:main-SNAPSHOT")
             implementation(compose.runtime)
             implementation(compose.foundation)
+            implementation(compose.animation)
             implementation(compose.ui)
         }
         commonTest.dependencies {
@@ -42,7 +48,7 @@ publishing {
         pom {
             name.set("Conveyance h2g2")
             description.set(
-                "The h2g2 style system -- hues, ground-rotation surfaces, and the 8-step Jost type scale -- ported from HG2Gui.",
+                "The h2g2 style system -- hues, ground-rotation surfaces, workflow routes, and the 8-step Jost type scale -- ported from HG2Gui.",
             )
         }
     }
