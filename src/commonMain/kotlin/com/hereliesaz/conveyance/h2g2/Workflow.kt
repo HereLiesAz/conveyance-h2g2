@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -36,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -129,13 +131,36 @@ private fun H2g2WorkflowBand.isBeingSetUp(): Boolean = nodes.any {
         it.state == H2g2WorkflowState.Gate
 }
 
+private fun cubicPoint(
+    t: Float,
+    start: Offset,
+    control1: Offset,
+    control2: Offset,
+    end: Offset,
+): Offset {
+    val u = 1f - t
+    val uu = u * u
+    val tt = t * t
+    val uuu = uu * u
+    val ttt = tt * t
+    return Offset(
+        x = uuu * start.x + 3f * uu * t * control1.x + 3f * u * tt * control2.x + ttt * end.x,
+        y = uuu * start.y + 3f * uu * t * control1.y + 3f * u * tt * control2.y + ttt * end.y,
+    )
+}
+
 /**
  * A flat vector workflow/mind-map for h2g2 applications.
  *
  * The whole map is alive. At rest it rocks very slowly as one object. Each topological band has a
- * distinct looping setup motion while unresolved, and every subject owns a stable motion
- * personality. Those motions are repetitive enough to become recognizable but use different
+ * distinct looping setup motion while unresolved, every subject owns a stable motion personality,
+ * and small packets travel through the routes so relationships carry visible motion as well as
+ * geometry. Those motions are repetitive enough to become recognizable but use different
  * periods/amplitudes so the composition does not lock into one mechanical beat.
+ *
+ * Engagement changes the choreography instead of merely adding another highlight: selecting a
+ * subject damps the large ambient rock and drift while leaving the subjects and route traffic alive.
+ * The map therefore settles around the person's focus without becoming inert.
  *
  * The default view is intentionally not a stack of record tiles. Subjects float as identity-hued
  * vector lozenges on the Ground and are connected by thick cubic routes. Forks, joins, gates and
@@ -186,6 +211,20 @@ fun H2g2WorkflowMap(
         ),
         label = "h2g2-route-breath",
     )
+    val routeTraffic by ambient.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(6200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "h2g2-route-traffic",
+    )
+    val ambientStrength by animateFloatAsState(
+        targetValue = if (selectedId == null) 1f else .16f,
+        animationSpec = tween(520, easing = FastOutSlowInEasing),
+        label = "h2g2-workflow-engagement-damping",
+    )
 
     val nodeLocations = remember(bands) {
         buildMap {
@@ -202,8 +241,8 @@ fun H2g2WorkflowMap(
             .fillMaxWidth()
             .height(BandHeight * bands.size)
             .graphicsLayer {
-                rotationZ = wholeRock
-                translationY = wholeDrift
+                rotationZ = wholeRock * ambientStrength
+                translationY = wholeDrift * ambientStrength
             },
     ) {
         val widthPx = constraints.maxWidth.toFloat()
@@ -219,25 +258,48 @@ fun H2g2WorkflowMap(
                 val fromY = bandHeightPx * (from.first + 0.58f)
                 val toY = bandHeightPx * (to.first + 0.34f)
                 val midY = (fromY + toY) / 2f
+                val start = Offset(fromX, fromY)
+                val control1 = Offset(fromX, midY)
+                val control2 = Offset(toX, midY)
+                val end = Offset(toX, toY)
                 val path = Path().apply {
-                    moveTo(fromX, fromY)
-                    cubicTo(fromX, midY, toX, midY, toX, toY)
+                    moveTo(start.x, start.y)
+                    cubicTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y)
                 }
                 val source = bands[from.first].nodes[from.second]
                 val routeColor = H2g2.caps[H2g2.indexOf(source.hueSeed)]
                 val stagger = (edgeIndex * 0.06f).coerceAtMost(.42f)
                 val p = ((routeProgress.value - stagger) / (1f - stagger)).coerceIn(0f, 1f)
+                val settledBreath = 1f + (routeBreath - 1f) * ambientStrength
+                val focusedRoute = selectedId != null && (edge.from == selectedId || edge.to == selectedId)
                 if (p > 0f) {
                     drawPath(
                         path = path,
                         color = routeColor,
-                        style = Stroke(width = 7.dp.toPx() * p * routeBreath, cap = StrokeCap.Round),
+                        style = Stroke(width = 7.dp.toPx() * p * settledBreath, cap = StrokeCap.Round),
                     )
                     drawCircle(
                         color = routeColor,
-                        radius = 4.dp.toPx() * p * routeBreath,
-                        center = androidx.compose.ui.geometry.Offset(toX, toY),
+                        radius = 4.dp.toPx() * p * settledBreath,
+                        center = end,
                     )
+
+                    repeat(3) { packetIndex ->
+                        val t = (routeTraffic + edgeIndex * .137f + packetIndex * .31f) % 1f
+                        val position = cubicPoint(t, start, control1, control2, end)
+                        val packetAlpha = p * if (focusedRoute) .95f else .62f
+                        val packetRadius = if (focusedRoute) 5.4.dp.toPx() else 4.2.dp.toPx()
+                        drawCircle(
+                            color = routeColor.copy(alpha = packetAlpha),
+                            radius = packetRadius,
+                            center = position,
+                        )
+                        drawCircle(
+                            color = H2g2.white.copy(alpha = packetAlpha * .72f),
+                            radius = packetRadius * .38f,
+                            center = position,
+                        )
+                    }
                 }
             }
         }
