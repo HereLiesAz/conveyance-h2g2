@@ -1,8 +1,8 @@
 [versions]
-agp = "9.3.1"
+agp = "9.4.0-rc02"
 gradle = "9.7.1"
 kotlin = "2.4.10"
-compose = "1.11.1"
+compose = "1.12.0"
 compileSdk = "37"
 compileSdkMinor = "1"
 minSdk = "24"
