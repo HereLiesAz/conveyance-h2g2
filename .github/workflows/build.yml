@@ -9,12 +9,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - name: Check out pinned Conveyance
+        uses: actions/checkout@v5
+        with:
+          repository: HereLiesAz/Conveyance
+          ref: 468371de06a903b1a6bdcf812197eef4a81afd3e
+          path: vendor/Conveyance
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
       - name: Compile and test all targets
         run: |
           ./gradlew \
