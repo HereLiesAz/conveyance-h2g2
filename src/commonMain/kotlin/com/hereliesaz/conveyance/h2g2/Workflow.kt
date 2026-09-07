@@ -3,7 +3,12 @@ package com.hereliesaz.conveyance.h2g2
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -31,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -40,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.conveyance.h2g2.H2g2.contrastingText
 import kotlinx.coroutines.delay
+import kotlin.math.absoluteValue
 
 /** Presentation-only state for a subject in an h2g2 workflow map. */
 enum class H2g2WorkflowState {
@@ -54,13 +59,15 @@ enum class H2g2WorkflowState {
 
 /**
  * A generic subject in a process/mind-map. The host owns semantics; this library only renders the
- * route. [hueSeed] is identity, never state or rank.
+ * route. [hueSeed] is identity, never state or rank. [motionSeed] gives the subject a stable motion
+ * personality; by default identity and motion identity are the same thing.
  */
 data class H2g2WorkflowNode(
     val id: String,
     val label: String,
     val subtitle: String? = null,
     val hueSeed: String = id,
+    val motionSeed: String = id,
     val state: H2g2WorkflowState = H2g2WorkflowState.Pending,
     val injected: Boolean = false,
     val detail: String? = null,
@@ -78,19 +85,60 @@ data class H2g2WorkflowBand(
 )
 
 private val WorkflowEase = CubicBezierEasing(0f, .9f, .1f, 1f)
-private val BandHeight = 122.dp
+private val BandHeight = 126.dp
 private val NodeInset = 10.dp
+
+private enum class NodeMotion {
+    Nod,
+    Pendulum,
+    Hover,
+    Shimmy,
+    Breathe,
+    Orbit,
+    Tilt,
+    Scoot,
+    Sway,
+    Bob,
+    Pulse,
+    Skitter,
+    Float,
+    Wag,
+}
+
+private enum class BandMotion {
+    Lift,
+    Cant,
+    Stretch,
+    Drift,
+    Rock,
+    Bounce,
+}
+
+private fun motionOf(seed: String): NodeMotion =
+    NodeMotion.entries[seed.hashCode().mod(NodeMotion.entries.size)]
+
+private fun bandMotionOf(index: Int): BandMotion = BandMotion.entries[index.mod(BandMotion.entries.size)]
+
+private fun H2g2WorkflowBand.isBeingSetUp(): Boolean = nodes.any {
+    it.state == H2g2WorkflowState.Pending ||
+        it.state == H2g2WorkflowState.Ready ||
+        it.state == H2g2WorkflowState.Blocked ||
+        it.state == H2g2WorkflowState.Gate
+}
 
 /**
  * A flat vector workflow/mind-map for h2g2 applications.
  *
- * The default view is intentionally not a stack of record tiles. Subjects float as identity-hued
- * vector lozenges on the Ground and are connected by thick hand-drawn-feeling cubic routes.
- * Forks, joins, gates and interruptions are spatial. Selecting a subject transforms that same
- * subject in place and reveals its detail beneath it; no replacement inspector is required.
+ * The whole map is alive. At rest it rocks very slowly as one object. Each topological band has a
+ * distinct looping setup motion while unresolved, and every subject owns a deterministic motion
+ * personality derived from [H2g2WorkflowNode.motionSeed]. Those motions are repetitive enough to
+ * become recognizable but use different periods/amplitudes so the composition does not lock into
+ * one mechanical beat.
  *
- * Feed this component topological [bands] plus explicit [edges]. That keeps the primitive generic
- * enough for build pipelines, approval processes, dependency maps, story maps, or any other DAG.
+ * The default view is intentionally not a stack of record tiles. Subjects float as identity-hued
+ * vector lozenges on the Ground and are connected by thick cubic routes. Forks, joins, gates and
+ * interruptions are spatial. Selecting a subject transforms that same subject in place and
+ * reveals its detail beneath it; no replacement inspector is required.
  */
 @Composable
 fun H2g2WorkflowMap(
@@ -108,6 +156,35 @@ fun H2g2WorkflowMap(
         routeProgress.animateTo(1f, tween(520, easing = WorkflowEase))
     }
 
+    val ambient = rememberInfiniteTransition(label = "h2g2-workflow-ambient")
+    val wholeRock by ambient.animateFloat(
+        initialValue = -0.8f,
+        targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(9000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "h2g2-whole-rock",
+    )
+    val wholeDrift by ambient.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(11200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "h2g2-whole-drift",
+    )
+    val routeBreath by ambient.animateFloat(
+        initialValue = .92f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(5400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "h2g2-route-breath",
+    )
+
     val nodeLocations = remember(bands) {
         buildMap {
             bands.forEachIndexed { bandIndex, band ->
@@ -121,7 +198,11 @@ fun H2g2WorkflowMap(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(BandHeight * bands.size),
+            .height(BandHeight * bands.size)
+            .graphicsLayer {
+                rotationZ = wholeRock
+                translationY = wholeDrift
+            },
     ) {
         val widthPx = constraints.maxWidth.toFloat()
         val density = androidx.compose.ui.platform.LocalDensity.current
@@ -148,11 +229,11 @@ fun H2g2WorkflowMap(
                     drawPath(
                         path = path,
                         color = routeColor,
-                        style = Stroke(width = 7.dp.toPx() * p, cap = StrokeCap.Round),
+                        style = Stroke(width = 7.dp.toPx() * p * routeBreath, cap = StrokeCap.Round),
                     )
                     drawCircle(
                         color = routeColor,
-                        radius = 4.dp.toPx() * p,
+                        radius = 4.dp.toPx() * p * routeBreath,
                         center = androidx.compose.ui.geometry.Offset(toX, toY),
                     )
                 }
@@ -161,26 +242,74 @@ fun H2g2WorkflowMap(
 
         Column(Modifier.fillMaxSize()) {
             bands.forEachIndexed { bandIndex, band ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(BandHeight),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    band.nodes.forEachIndexed { nodeIndex, node ->
-                        Box(
-                            modifier = Modifier.weight(1f),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            H2g2WorkflowSubject(
-                                node = node,
-                                selected = node.id == selectedId,
-                                arrivalDelayMs = 70L * bandIndex + 34L * nodeIndex,
-                                onClick = { onNodeSelected(node) },
-                                modifier = Modifier.padding(horizontal = NodeInset),
-                            )
+                WorkflowBand(
+                    band = band,
+                    bandIndex = bandIndex,
+                    selectedId = selectedId,
+                    onNodeSelected = onNodeSelected,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkflowBand(
+    band: H2g2WorkflowBand,
+    bandIndex: Int,
+    selectedId: String?,
+    onNodeSelected: (H2g2WorkflowNode) -> Unit,
+) {
+    val motion = bandMotionOf(bandIndex)
+    val transition = rememberInfiniteTransition(label = "h2g2-band-$bandIndex")
+    val loop by transition.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1700 + bandIndex * 173, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "h2g2-band-loop-$bandIndex",
+    )
+    val setup = band.isBeingSetUp()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(BandHeight)
+            .graphicsLayer {
+                if (setup) {
+                    when (motion) {
+                        BandMotion.Lift -> translationY = loop * 5f
+                        BandMotion.Cant -> rotationZ = loop * 1.15f
+                        BandMotion.Stretch -> scaleX = 1f + loop.absoluteValue * .025f
+                        BandMotion.Drift -> translationX = loop * 8f
+                        BandMotion.Rock -> {
+                            rotationZ = loop * .8f
+                            translationX = loop * 3f
+                        }
+                        BandMotion.Bounce -> {
+                            translationY = -loop.absoluteValue * 6f
+                            scaleY = 1f + loop.absoluteValue * .018f
                         }
                     }
                 }
+            },
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        band.nodes.forEachIndexed { nodeIndex, node ->
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                H2g2WorkflowSubject(
+                    node = node,
+                    selected = node.id == selectedId,
+                    arrivalDelayMs = 70L * bandIndex + 34L * nodeIndex,
+                    onClick = { onNodeSelected(node) },
+                    modifier = Modifier.padding(horizontal = NodeInset),
+                )
             }
         }
     }
@@ -210,6 +339,28 @@ private fun H2g2WorkflowSubject(
         label = "h2g2-workflow-subject-scale",
     )
 
+    val personality = motionOf(node.motionSeed)
+    val hash = node.motionSeed.hashCode().absoluteValue
+    val personalityTransition = rememberInfiniteTransition(label = "h2g2-node-${node.id}")
+    val primary by personalityTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1450 + (hash % 1900), easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "h2g2-node-primary-${node.id}",
+    )
+    val secondary by personalityTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2100 + (hash % 2300), easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "h2g2-node-secondary-${node.id}",
+    )
+
     LaunchedEffect(node.id) {
         delay(arrivalDelayMs)
         arrival.animateTo(1f, tween(320, easing = WorkflowEase))
@@ -220,10 +371,75 @@ private fun H2g2WorkflowSubject(
             .widthIn(min = 96.dp, max = 240.dp)
             .graphicsLayer {
                 alpha = arrival.value
-                translationY = (1f - arrival.value) * 42f
-                rotationZ = (1f - arrival.value) * if (hueIndex % 2 == 0) -4f else 4f
-                scaleX = activeScale
-                scaleY = activeScale
+                translationY += (1f - arrival.value) * 42f
+                rotationZ += (1f - arrival.value) * if (hueIndex % 2 == 0) -4f else 4f
+
+                when (personality) {
+                    NodeMotion.Nod -> {
+                        rotationZ += primary * 2.4f
+                        translationY += secondary * 3f
+                    }
+                    NodeMotion.Pendulum -> {
+                        rotationZ += primary * 3.2f
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(.5f, 0f)
+                    }
+                    NodeMotion.Hover -> {
+                        translationY += primary * 6f
+                        translationX += secondary * 2f
+                    }
+                    NodeMotion.Shimmy -> {
+                        translationX += primary * 5f
+                        rotationZ += secondary * 1.2f
+                    }
+                    NodeMotion.Breathe -> {
+                        scaleX *= 1f + primary * .025f
+                        scaleY *= 1f + primary * .025f
+                    }
+                    NodeMotion.Orbit -> {
+                        translationX += primary * 5f
+                        translationY += secondary * 5f
+                        rotationZ += primary * .8f
+                    }
+                    NodeMotion.Tilt -> {
+                        rotationZ += primary * 2.2f
+                        scaleY *= 1f + secondary * .015f
+                    }
+                    NodeMotion.Scoot -> {
+                        translationX += primary * 7f
+                        scaleX *= 1f + secondary * .018f
+                    }
+                    NodeMotion.Sway -> {
+                        translationX += primary * 4f
+                        rotationZ += primary * 1.6f
+                    }
+                    NodeMotion.Bob -> {
+                        translationY += primary * 7f
+                        scaleY *= 1f - secondary.absoluteValue * .012f
+                    }
+                    NodeMotion.Pulse -> {
+                        val pulse = primary.absoluteValue
+                        scaleX *= 1f + pulse * .035f
+                        scaleY *= 1f + pulse * .035f
+                    }
+                    NodeMotion.Skitter -> {
+                        translationX += primary * 4f + secondary * 2f
+                        translationY += secondary * 2f
+                        rotationZ += primary * .9f
+                    }
+                    NodeMotion.Float -> {
+                        translationY += primary * 5f
+                        rotationZ += secondary * 1.1f
+                        scaleX *= 1f + secondary * .012f
+                    }
+                    NodeMotion.Wag -> {
+                        rotationZ += primary * 2.8f
+                        translationX += secondary * 2.5f
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(.5f, 1f)
+                    }
+                }
+
+                scaleX *= activeScale
+                scaleY *= activeScale
             },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
