@@ -57,10 +57,29 @@ enum class H2g2WorkflowState {
     Failed,
 }
 
+/** Stable motion personalities hosts may assign explicitly to workflow subjects. */
+enum class H2g2WorkflowMotion {
+    Nod,
+    Pendulum,
+    Hover,
+    Shimmy,
+    Breathe,
+    Orbit,
+    Tilt,
+    Scoot,
+    Sway,
+    Bob,
+    Pulse,
+    Skitter,
+    Float,
+    Wag,
+}
+
 /**
  * A generic subject in a process/mind-map. The host owns semantics; this library only renders the
- * route. [hueSeed] is identity, never state or rank. [motionSeed] gives the subject a stable motion
- * personality; by default identity and motion identity are the same thing.
+ * route. [hueSeed] is identity, never state or rank. [motion] may be assigned explicitly when a
+ * role or subject has a deliberate personality; otherwise [motionSeed] chooses one
+ * deterministically so the same identity still moves the same way every time.
  */
 data class H2g2WorkflowNode(
     val id: String,
@@ -68,6 +87,7 @@ data class H2g2WorkflowNode(
     val subtitle: String? = null,
     val hueSeed: String = id,
     val motionSeed: String = id,
+    val motion: H2g2WorkflowMotion? = null,
     val state: H2g2WorkflowState = H2g2WorkflowState.Pending,
     val injected: Boolean = false,
     val detail: String? = null,
@@ -88,23 +108,6 @@ private val WorkflowEase = CubicBezierEasing(0f, .9f, .1f, 1f)
 private val BandHeight = 126.dp
 private val NodeInset = 10.dp
 
-private enum class NodeMotion {
-    Nod,
-    Pendulum,
-    Hover,
-    Shimmy,
-    Breathe,
-    Orbit,
-    Tilt,
-    Scoot,
-    Sway,
-    Bob,
-    Pulse,
-    Skitter,
-    Float,
-    Wag,
-}
-
 private enum class BandMotion {
     Lift,
     Cant,
@@ -114,8 +117,8 @@ private enum class BandMotion {
     Bounce,
 }
 
-private fun motionOf(seed: String): NodeMotion =
-    NodeMotion.entries[seed.hashCode().mod(NodeMotion.entries.size)]
+private fun motionOf(seed: String): H2g2WorkflowMotion =
+    H2g2WorkflowMotion.entries[seed.hashCode().mod(H2g2WorkflowMotion.entries.size)]
 
 private fun bandMotionOf(index: Int): BandMotion = BandMotion.entries[index.mod(BandMotion.entries.size)]
 
@@ -130,10 +133,9 @@ private fun H2g2WorkflowBand.isBeingSetUp(): Boolean = nodes.any {
  * A flat vector workflow/mind-map for h2g2 applications.
  *
  * The whole map is alive. At rest it rocks very slowly as one object. Each topological band has a
- * distinct looping setup motion while unresolved, and every subject owns a deterministic motion
- * personality derived from [H2g2WorkflowNode.motionSeed]. Those motions are repetitive enough to
- * become recognizable but use different periods/amplitudes so the composition does not lock into
- * one mechanical beat.
+ * distinct looping setup motion while unresolved, and every subject owns a stable motion
+ * personality. Those motions are repetitive enough to become recognizable but use different
+ * periods/amplitudes so the composition does not lock into one mechanical beat.
  *
  * The default view is intentionally not a stack of record tiles. Subjects float as identity-hued
  * vector lozenges on the Ground and are connected by thick cubic routes. Forks, joins, gates and
@@ -339,7 +341,7 @@ private fun H2g2WorkflowSubject(
         label = "h2g2-workflow-subject-scale",
     )
 
-    val personality = motionOf(node.motionSeed)
+    val personality = node.motion ?: motionOf(node.motionSeed)
     val hash = node.motionSeed.hashCode().absoluteValue
     val personalityTransition = rememberInfiniteTransition(label = "h2g2-node-${node.id}")
     val primary by personalityTransition.animateFloat(
@@ -375,63 +377,63 @@ private fun H2g2WorkflowSubject(
                 rotationZ += (1f - arrival.value) * if (hueIndex % 2 == 0) -4f else 4f
 
                 when (personality) {
-                    NodeMotion.Nod -> {
+                    H2g2WorkflowMotion.Nod -> {
                         rotationZ += primary * 2.4f
                         translationY += secondary * 3f
                     }
-                    NodeMotion.Pendulum -> {
+                    H2g2WorkflowMotion.Pendulum -> {
                         rotationZ += primary * 3.2f
                         transformOrigin = androidx.compose.ui.graphics.TransformOrigin(.5f, 0f)
                     }
-                    NodeMotion.Hover -> {
+                    H2g2WorkflowMotion.Hover -> {
                         translationY += primary * 6f
                         translationX += secondary * 2f
                     }
-                    NodeMotion.Shimmy -> {
+                    H2g2WorkflowMotion.Shimmy -> {
                         translationX += primary * 5f
                         rotationZ += secondary * 1.2f
                     }
-                    NodeMotion.Breathe -> {
+                    H2g2WorkflowMotion.Breathe -> {
                         scaleX *= 1f + primary * .025f
                         scaleY *= 1f + primary * .025f
                     }
-                    NodeMotion.Orbit -> {
+                    H2g2WorkflowMotion.Orbit -> {
                         translationX += primary * 5f
                         translationY += secondary * 5f
                         rotationZ += primary * .8f
                     }
-                    NodeMotion.Tilt -> {
+                    H2g2WorkflowMotion.Tilt -> {
                         rotationZ += primary * 2.2f
                         scaleY *= 1f + secondary * .015f
                     }
-                    NodeMotion.Scoot -> {
+                    H2g2WorkflowMotion.Scoot -> {
                         translationX += primary * 7f
                         scaleX *= 1f + secondary * .018f
                     }
-                    NodeMotion.Sway -> {
+                    H2g2WorkflowMotion.Sway -> {
                         translationX += primary * 4f
                         rotationZ += primary * 1.6f
                     }
-                    NodeMotion.Bob -> {
+                    H2g2WorkflowMotion.Bob -> {
                         translationY += primary * 7f
                         scaleY *= 1f - secondary.absoluteValue * .012f
                     }
-                    NodeMotion.Pulse -> {
+                    H2g2WorkflowMotion.Pulse -> {
                         val pulse = primary.absoluteValue
                         scaleX *= 1f + pulse * .035f
                         scaleY *= 1f + pulse * .035f
                     }
-                    NodeMotion.Skitter -> {
+                    H2g2WorkflowMotion.Skitter -> {
                         translationX += primary * 4f + secondary * 2f
                         translationY += secondary * 2f
                         rotationZ += primary * .9f
                     }
-                    NodeMotion.Float -> {
+                    H2g2WorkflowMotion.Float -> {
                         translationY += primary * 5f
                         rotationZ += secondary * 1.1f
                         scaleX *= 1f + secondary * .012f
                     }
-                    NodeMotion.Wag -> {
+                    H2g2WorkflowMotion.Wag -> {
                         rotationZ += primary * 2.8f
                         translationX += secondary * 2.5f
                         transformOrigin = androidx.compose.ui.graphics.TransformOrigin(.5f, 1f)
