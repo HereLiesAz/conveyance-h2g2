@@ -20,16 +20,23 @@ kotlin {
         minSdk = libs.versions.minSdk.get().toInt()
     }
     jvm("desktop")
-    js { browser() }
+    js {
+        browser()
+        binaries.executable()
+    }
     @OptIn(ExperimentalWasmDsl::class)
-    wasmJs { browser() }
+    wasmJs {
+        browser()
+        binaries.executable()
+    }
 
     sourceSets {
         commonMain.dependencies {
-            // Conveyance has no tagged release yet, so this resolves against `main` via JitPack.
-            // Once Conveyance cuts a release tag, pin to that instead of `main-SNAPSHOT`.
-            api("com.github.HereLiesAz.Conveyance:conveyance-core:main-SNAPSHOT")
-            api("com.github.HereLiesAz.Conveyance:conveyance-compose:main-SNAPSHOT")
+            // Pin the exact Conveyance revision this binding was built against. Floating
+            // main-SNAPSHOT dependencies make KMP metadata non-reproducible and can resolve stale
+            // target publications through JitPack.
+            api("com.github.HereLiesAz.Conveyance:conveyance-core:468371de06a903b1a6bdcf812197eef4a81afd3e")
+            api("com.github.HereLiesAz.Conveyance:conveyance-compose:468371de06a903b1a6bdcf812197eef4a81afd3e")
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.animation)
