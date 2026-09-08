@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -82,6 +84,9 @@ enum class H2g2WorkflowMotion {
  * route. [hueSeed] is identity, never state or rank. [motion] may be assigned explicitly when a
  * role or subject has a deliberate personality; otherwise [motionSeed] chooses one
  * deterministically so the same identity still moves the same way every time.
+ *
+ * [progress] is optional, normalized 0f..1f work progress. When present the node fills from the
+ * bottom with its own identity colour instead of growing a detached progress indicator.
  */
 data class H2g2WorkflowNode(
     val id: String,
@@ -91,6 +96,7 @@ data class H2g2WorkflowNode(
     val motionSeed: String = id,
     val motion: H2g2WorkflowMotion? = null,
     val state: H2g2WorkflowState = H2g2WorkflowState.Pending,
+    val progress: Float? = null,
     val injected: Boolean = false,
     val detail: String? = null,
 )
@@ -109,6 +115,7 @@ data class H2g2WorkflowBand(
 private val WorkflowEase = CubicBezierEasing(0f, .9f, .1f, 1f)
 private val BandHeight = 126.dp
 private val NodeInset = 10.dp
+private const val SuperiorMotionShare = .22f
 
 private enum class BandMotion {
     Lift,
@@ -129,6 +136,77 @@ private fun H2g2WorkflowBand.isBeingSetUp(): Boolean = nodes.any {
         it.state == H2g2WorkflowState.Ready ||
         it.state == H2g2WorkflowState.Blocked ||
         it.state == H2g2WorkflowState.Gate
+}
+
+private fun GraphicsLayerScope.applyWorkflowMotion(
+    motion: H2g2WorkflowMotion,
+    primary: Float,
+    secondary: Float,
+    strength: Float = 1f,
+) {
+    when (motion) {
+        H2g2WorkflowMotion.Nod -> {
+            rotationZ += primary * 2.4f * strength
+            translationY += secondary * 3f * strength
+        }
+        H2g2WorkflowMotion.Pendulum -> {
+            rotationZ += primary * 3.2f * strength
+            if (strength == 1f) transformOrigin = androidx.compose.ui.graphics.TransformOrigin(.5f, 0f)
+        }
+        H2g2WorkflowMotion.Hover -> {
+            translationY += primary * 6f * strength
+            translationX += secondary * 2f * strength
+        }
+        H2g2WorkflowMotion.Shimmy -> {
+            translationX += primary * 5f * strength
+            rotationZ += secondary * 1.2f * strength
+        }
+        H2g2WorkflowMotion.Breathe -> {
+            scaleX *= 1f + primary * .025f * strength
+            scaleY *= 1f + primary * .025f * strength
+        }
+        H2g2WorkflowMotion.Orbit -> {
+            translationX += primary * 5f * strength
+            translationY += secondary * 5f * strength
+            rotationZ += primary * .8f * strength
+        }
+        H2g2WorkflowMotion.Tilt -> {
+            rotationZ += primary * 2.2f * strength
+            scaleY *= 1f + secondary * .015f * strength
+        }
+        H2g2WorkflowMotion.Scoot -> {
+            translationX += primary * 7f * strength
+            scaleX *= 1f + secondary * .018f * strength
+        }
+        H2g2WorkflowMotion.Sway -> {
+            translationX += primary * 4f * strength
+            rotationZ += primary * 1.6f * strength
+        }
+        H2g2WorkflowMotion.Bob -> {
+            translationY += primary * 7f * strength
+            scaleY *= 1f - secondary.absoluteValue * .012f * strength
+        }
+        H2g2WorkflowMotion.Pulse -> {
+            val pulse = primary.absoluteValue
+            scaleX *= 1f + pulse * .035f * strength
+            scaleY *= 1f + pulse * .035f * strength
+        }
+        H2g2WorkflowMotion.Skitter -> {
+            translationX += (primary * 4f + secondary * 2f) * strength
+            translationY += secondary * 2f * strength
+            rotationZ += primary * .9f * strength
+        }
+        H2g2WorkflowMotion.Float -> {
+            translationY += primary * 5f * strength
+            rotationZ += secondary * 1.1f * strength
+            scaleX *= 1f + secondary * .012f * strength
+        }
+        H2g2WorkflowMotion.Wag -> {
+            rotationZ += primary * 2.8f * strength
+            translationX += secondary * 2.5f * strength
+            if (strength == 1f) transformOrigin = androidx.compose.ui.graphics.TransformOrigin(.5f, 1f)
+        }
+    }
 }
 
 private fun cubicPoint(
@@ -157,6 +235,11 @@ private fun cubicPoint(
  * and small packets travel through the routes so relationships carry visible motion as well as
  * geometry. Those motions are repetitive enough to become recognizable but use different
  * periods/amplitudes so the composition does not lock into one mechanical beat.
+ *
+ * Subjects also inherit a softened fraction of their immediate superior's motion. The superior is
+ * the source of the first incoming workflow edge. This gives branches a visible family resemblance
+ * without erasing each role's own personality and provides the base for deeper hierarchical motion
+ * composition later.
  *
  * Engagement changes the choreography instead of merely adding another highlight: selecting a
  * subject damps the large ambient rock and drift while leaving the subjects and route traffic alive.
@@ -235,6 +318,14 @@ fun H2g2WorkflowMap(
             }
         }
     }
+    val nodesById = remember(bands) {
+        bands.flatMap { it.nodes }.associateBy { it.id }
+    }
+    val superiorByNode = remember(bands, edges) {
+        edges.groupBy { it.to }.mapNotNull { (childId, incoming) ->
+            nodesById[incoming.first().from]?.let { superior -> childId to superior }
+        }.toMap()
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -309,6 +400,7 @@ fun H2g2WorkflowMap(
                 WorkflowBand(
                     band = band,
                     bandIndex = bandIndex,
+                    superiors = superiorByNode,
                     selectedId = selectedId,
                     onNodeSelected = onNodeSelected,
                 )
@@ -321,6 +413,7 @@ fun H2g2WorkflowMap(
 private fun WorkflowBand(
     band: H2g2WorkflowBand,
     bandIndex: Int,
+    superiors: Map<String, H2g2WorkflowNode>,
     selectedId: String?,
     onNodeSelected: (H2g2WorkflowNode) -> Unit,
 ) {
@@ -369,6 +462,7 @@ private fun WorkflowBand(
             ) {
                 H2g2WorkflowSubject(
                     node = node,
+                    superior = superiors[node.id],
                     selected = node.id == selectedId,
                     arrivalDelayMs = 70L * bandIndex + 34L * nodeIndex,
                     onClick = { onNodeSelected(node) },
@@ -382,6 +476,7 @@ private fun WorkflowBand(
 @Composable
 private fun H2g2WorkflowSubject(
     node: H2g2WorkflowNode,
+    superior: H2g2WorkflowNode?,
     selected: Boolean,
     arrivalDelayMs: Long,
     onClick: () -> Unit,
@@ -402,9 +497,16 @@ private fun H2g2WorkflowSubject(
         animationSpec = tween(240, easing = WorkflowEase),
         label = "h2g2-workflow-subject-scale",
     )
+    val progress by animateFloatAsState(
+        targetValue = node.progress?.coerceIn(0f, 1f) ?: 0f,
+        animationSpec = tween(360, easing = WorkflowEase),
+        label = "h2g2-workflow-progress-${node.id}",
+    )
 
     val personality = node.motion ?: motionOf(node.motionSeed)
     val hash = node.motionSeed.hashCode().absoluteValue
+    val superiorPersonality = superior?.motion ?: superior?.let { motionOf(it.motionSeed) }
+    val superiorHash = superior?.motionSeed?.hashCode()?.absoluteValue ?: 0
     val personalityTransition = rememberInfiniteTransition(label = "h2g2-node-${node.id}")
     val primary by personalityTransition.animateFloat(
         initialValue = -1f,
@@ -424,6 +526,33 @@ private fun H2g2WorkflowSubject(
         ),
         label = "h2g2-node-secondary-${node.id}",
     )
+    val superiorPrimary by personalityTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1450 + (superiorHash % 1900), easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "h2g2-node-superior-primary-${node.id}",
+    )
+    val superiorSecondary by personalityTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2100 + (superiorHash % 2300), easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "h2g2-node-superior-secondary-${node.id}",
+    )
+    val jello by personalityTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(560 + (hash % 260), easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "h2g2-node-jello-${node.id}",
+    )
 
     LaunchedEffect(node.id) {
         delay(arrivalDelayMs)
@@ -438,68 +567,21 @@ private fun H2g2WorkflowSubject(
                 translationY += (1f - arrival.value) * 42f
                 rotationZ += (1f - arrival.value) * if (hueIndex % 2 == 0) -4f else 4f
 
-                when (personality) {
-                    H2g2WorkflowMotion.Nod -> {
-                        rotationZ += primary * 2.4f
-                        translationY += secondary * 3f
-                    }
-                    H2g2WorkflowMotion.Pendulum -> {
-                        rotationZ += primary * 3.2f
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(.5f, 0f)
-                    }
-                    H2g2WorkflowMotion.Hover -> {
-                        translationY += primary * 6f
-                        translationX += secondary * 2f
-                    }
-                    H2g2WorkflowMotion.Shimmy -> {
-                        translationX += primary * 5f
-                        rotationZ += secondary * 1.2f
-                    }
-                    H2g2WorkflowMotion.Breathe -> {
-                        scaleX *= 1f + primary * .025f
-                        scaleY *= 1f + primary * .025f
-                    }
-                    H2g2WorkflowMotion.Orbit -> {
-                        translationX += primary * 5f
-                        translationY += secondary * 5f
-                        rotationZ += primary * .8f
-                    }
-                    H2g2WorkflowMotion.Tilt -> {
-                        rotationZ += primary * 2.2f
-                        scaleY *= 1f + secondary * .015f
-                    }
-                    H2g2WorkflowMotion.Scoot -> {
-                        translationX += primary * 7f
-                        scaleX *= 1f + secondary * .018f
-                    }
-                    H2g2WorkflowMotion.Sway -> {
-                        translationX += primary * 4f
-                        rotationZ += primary * 1.6f
-                    }
-                    H2g2WorkflowMotion.Bob -> {
-                        translationY += primary * 7f
-                        scaleY *= 1f - secondary.absoluteValue * .012f
-                    }
-                    H2g2WorkflowMotion.Pulse -> {
-                        val pulse = primary.absoluteValue
-                        scaleX *= 1f + pulse * .035f
-                        scaleY *= 1f + pulse * .035f
-                    }
-                    H2g2WorkflowMotion.Skitter -> {
-                        translationX += primary * 4f + secondary * 2f
-                        translationY += secondary * 2f
-                        rotationZ += primary * .9f
-                    }
-                    H2g2WorkflowMotion.Float -> {
-                        translationY += primary * 5f
-                        rotationZ += secondary * 1.1f
-                        scaleX *= 1f + secondary * .012f
-                    }
-                    H2g2WorkflowMotion.Wag -> {
-                        rotationZ += primary * 2.8f
-                        translationX += secondary * 2.5f
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(.5f, 1f)
-                    }
+                if (superiorPersonality != null) {
+                    applyWorkflowMotion(
+                        superiorPersonality,
+                        superiorPrimary,
+                        superiorSecondary,
+                        SuperiorMotionShare,
+                    )
+                }
+                applyWorkflowMotion(personality, primary, secondary)
+
+                if (node.state == H2g2WorkflowState.Active) {
+                    val wobble = jello * .028f
+                    scaleX *= 1f + wobble
+                    scaleY *= 1f - wobble * .72f
+                    rotationZ += jello * .55f
                 }
 
                 scaleX *= activeScale
@@ -514,47 +596,62 @@ private fun H2g2WorkflowSubject(
             H2g2WorkflowState.Failed -> 16.dp
             else -> 999.dp
         }
+        val progressOverlay = if (selected) H2g2.hues[4] else cap
 
-        Column(
+        Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(radius))
                 .background(selectedBackground)
-                .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .clickable(onClick = onClick),
         ) {
-            BasicText(
-                text = node.label.uppercase(),
-                style = type.capsule.copy(color = selectedText, textAlign = TextAlign.Center),
-            )
-            if (node.subtitle != null) {
-                BasicText(
-                    text = node.subtitle,
-                    style = type.endCap.copy(color = selectedText, textAlign = TextAlign.Center),
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            Row(
-                modifier = Modifier.padding(top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(H2g2Surface.capsule)
-                        .background(if (selected) H2g2.hues[4] else cap)
-                        .padding(horizontal = 7.dp, vertical = 3.dp),
-                ) {
-                    BasicText(
-                        text = node.state.name.uppercase(),
-                        style = type.endCap.copy(color = if (selected) H2g2.ink else cap.contrastingText()),
+            if (node.progress != null) {
+                Canvas(Modifier.matchParentSize()) {
+                    val top = size.height * (1f - progress)
+                    drawRect(
+                        color = progressOverlay.copy(alpha = if (selected) .24f else .42f),
+                        topLeft = Offset(0f, top),
+                        size = androidx.compose.ui.geometry.Size(size.width, size.height - top),
                     )
                 }
-                if (node.injected) {
+            }
+
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                BasicText(
+                    text = node.label.uppercase(),
+                    style = type.capsule.copy(color = selectedText, textAlign = TextAlign.Center),
+                )
+                if (node.subtitle != null) {
                     BasicText(
-                        text = "AUTO",
-                        style = type.endCap.copy(color = selectedText),
+                        text = node.subtitle,
+                        style = type.endCap.copy(color = selectedText, textAlign = TextAlign.Center),
+                        modifier = Modifier.padding(top = 4.dp),
                     )
+                }
+                Row(
+                    modifier = Modifier.padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(H2g2Surface.capsule)
+                            .background(if (selected) H2g2.hues[4] else cap)
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                    ) {
+                        BasicText(
+                            text = node.state.name.uppercase(),
+                            style = type.endCap.copy(color = if (selected) H2g2.ink else cap.contrastingText()),
+                        )
+                    }
+                    if (node.injected) {
+                        BasicText(
+                            text = "AUTO",
+                            style = type.endCap.copy(color = selectedText),
+                        )
+                    }
                 }
             }
         }
