@@ -116,6 +116,7 @@ private val WorkflowEase = CubicBezierEasing(0f, .9f, .1f, 1f)
 private val BandHeight = 126.dp
 private val NodeInset = 10.dp
 private const val SuperiorMotionShare = .22f
+private const val MaxInheritedGenerations = 6
 
 private enum class BandMotion {
     Lift,
@@ -125,6 +126,13 @@ private enum class BandMotion {
     Rock,
     Bounce,
 }
+
+private data class InheritedMotionSample(
+    val motion: H2g2WorkflowMotion,
+    val primary: Float,
+    val secondary: Float,
+    val strength: Float,
+)
 
 private fun motionOf(seed: String): H2g2WorkflowMotion =
     H2g2WorkflowMotion.entries[seed.hashCode().mod(H2g2WorkflowMotion.entries.size)]
@@ -136,6 +144,12 @@ private fun H2g2WorkflowBand.isBeingSetUp(): Boolean = nodes.any {
         it.state == H2g2WorkflowState.Ready ||
         it.state == H2g2WorkflowState.Blocked ||
         it.state == H2g2WorkflowState.Gate
+}
+
+private fun inheritedStrength(depth: Int): Float {
+    var strength = SuperiorMotionShare
+    repeat(depth) { strength *= SuperiorMotionShare }
+    return strength
 }
 
 private fun GraphicsLayerScope.applyWorkflowMotion(
@@ -236,10 +250,10 @@ private fun cubicPoint(
  * geometry. Those motions are repetitive enough to become recognizable but use different
  * periods/amplitudes so the composition does not lock into one mechanical beat.
  *
- * Subjects also inherit a softened fraction of their immediate superior's motion. The superior is
- * the source of the first incoming workflow edge. This gives branches a visible family resemblance
- * without erasing each role's own personality and provides the base for deeper hierarchical motion
- * composition later.
+ * Subjects inherit motion through their workflow lineage. The first incoming edge identifies the
+ * immediate superior. That superior contributes 22% of its personality, the grandparent contributes
+ * 22% of that again, and so on. The effect fades rapidly while keeping a branch visibly related.
+ * A subject's own personality always remains at full strength.
  *
  * Engagement changes the choreography instead of merely adding another highlight: selecting a
  * subject damps the large ambient rock and drift while leaving the subjects and route traffic alive.
@@ -321,10 +335,20 @@ fun H2g2WorkflowMap(
     val nodesById = remember(bands) {
         bands.flatMap { it.nodes }.associateBy { it.id }
     }
-    val superiorByNode = remember(bands, edges) {
-        edges.groupBy { it.to }.mapNotNull { (childId, incoming) ->
-            nodesById[incoming.first().from]?.let { superior -> childId to superior }
-        }.toMap()
+    val superiorIdByNode = remember(edges) {
+        edges.groupBy { it.to }.mapValues { (_, incoming) -> incoming.first().from }
+    }
+    val lineageByNode = remember(bands, edges) {
+        nodesById.keys.associateWith { nodeId ->
+            buildList {
+                val visited = mutableSetOf(nodeId)
+                var cursor = superiorIdByNode[nodeId]
+                while (cursor != null && size < MaxInheritedGenerations && visited.add(cursor)) {
+                    nodesById[cursor]?.let(::add)
+                    cursor = superiorIdByNode[cursor]
+                }
+            }
+        }
     }
 
     BoxWithConstraints(
@@ -400,7 +424,7 @@ fun H2g2WorkflowMap(
                 WorkflowBand(
                     band = band,
                     bandIndex = bandIndex,
-                    superiors = superiorByNode,
+                    lineages = lineageByNode,
                     selectedId = selectedId,
                     onNodeSelected = onNodeSelected,
                 )
@@ -413,7 +437,7 @@ fun H2g2WorkflowMap(
 private fun WorkflowBand(
     band: H2g2WorkflowBand,
     bandIndex: Int,
-    superiors: Map<String, H2g2WorkflowNode>,
+    lineages: Map<String, List<H2g2WorkflowNode>>,
     selectedId: String?,
     onNodeSelected: (H2g2WorkflowNode) -> Unit,
 ) {
@@ -462,7 +486,7 @@ private fun WorkflowBand(
             ) {
                 H2g2WorkflowSubject(
                     node = node,
-                    superior = superiors[node.id],
+                    lineage = lineages[node.id].orEmpty(),
                     selected = node.id == selectedId,
                     arrivalDelayMs = 70L * bandIndex + 34L * nodeIndex,
                     onClick = { onNodeSelected(node) },
@@ -476,7 +500,7 @@ private fun WorkflowBand(
 @Composable
 private fun H2g2WorkflowSubject(
     node: H2g2WorkflowNode,
-    superior: H2g2WorkflowNode?,
+    lineage: List<H2g2WorkflowNode>,
     selected: Boolean,
     arrivalDelayMs: Long,
     onClick: () -> Unit,
@@ -505,8 +529,6 @@ private fun H2g2WorkflowSubject(
 
     val personality = node.motion ?: motionOf(node.motionSeed)
     val hash = node.motionSeed.hashCode().absoluteValue
-    val superiorPersonality = superior?.motion ?: superior?.let { motionOf(it.motionSeed) }
-    val superiorHash = superior?.motionSeed?.hashCode()?.absoluteValue ?: 0
     val personalityTransition = rememberInfiniteTransition(label = "h2g2-node-${node.id}")
     val primary by personalityTransition.animateFloat(
         initialValue = -1f,
@@ -526,24 +548,33 @@ private fun H2g2WorkflowSubject(
         ),
         label = "h2g2-node-secondary-${node.id}",
     )
-    val superiorPrimary by personalityTransition.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1450 + (superiorHash % 1900), easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "h2g2-node-superior-primary-${node.id}",
-    )
-    val superiorSecondary by personalityTransition.animateFloat(
-        initialValue = -1f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2100 + (superiorHash % 2300), easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "h2g2-node-superior-secondary-${node.id}",
-    )
+    val inherited = lineage.mapIndexed { depth, ancestor ->
+        val ancestorHash = ancestor.motionSeed.hashCode().absoluteValue
+        val ancestorPrimary = personalityTransition.animateFloat(
+            initialValue = -1f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1450 + (ancestorHash % 1900), easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "h2g2-node-ancestor-primary-${node.id}-$depth",
+        ).value
+        val ancestorSecondary = personalityTransition.animateFloat(
+            initialValue = -1f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2100 + (ancestorHash % 2300), easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "h2g2-node-ancestor-secondary-${node.id}-$depth",
+        ).value
+        InheritedMotionSample(
+            motion = ancestor.motion ?: motionOf(ancestor.motionSeed),
+            primary = ancestorPrimary,
+            secondary = ancestorSecondary,
+            strength = inheritedStrength(depth),
+        )
+    }
     val jello by personalityTransition.animateFloat(
         initialValue = -1f,
         targetValue = 1f,
@@ -567,12 +598,12 @@ private fun H2g2WorkflowSubject(
                 translationY += (1f - arrival.value) * 42f
                 rotationZ += (1f - arrival.value) * if (hueIndex % 2 == 0) -4f else 4f
 
-                if (superiorPersonality != null) {
+                inherited.asReversed().forEach { inheritedMotion ->
                     applyWorkflowMotion(
-                        superiorPersonality,
-                        superiorPrimary,
-                        superiorSecondary,
-                        SuperiorMotionShare,
+                        motion = inheritedMotion.motion,
+                        primary = inheritedMotion.primary,
+                        secondary = inheritedMotion.secondary,
+                        strength = inheritedMotion.strength,
                     )
                 }
                 applyWorkflowMotion(personality, primary, secondary)
