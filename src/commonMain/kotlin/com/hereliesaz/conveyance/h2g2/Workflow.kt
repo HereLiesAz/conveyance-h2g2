@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Path
@@ -602,19 +602,19 @@ private fun H2g2WorkflowSubject(
             modifier = Modifier
                 .clip(RoundedCornerShape(radius))
                 .background(selectedBackground)
+                .drawWithContent {
+                    if (node.progress != null) {
+                        val top = size.height * (1f - progress)
+                        drawRect(
+                            color = progressOverlay.copy(alpha = if (selected) .24f else .42f),
+                            topLeft = Offset(0f, top),
+                            size = androidx.compose.ui.geometry.Size(size.width, size.height - top),
+                        )
+                    }
+                    drawContent()
+                }
                 .clickable(onClick = onClick),
         ) {
-            if (node.progress != null) {
-                Canvas(Modifier.matchParentSize()) {
-                    val top = size.height * (1f - progress)
-                    drawRect(
-                        color = progressOverlay.copy(alpha = if (selected) .24f else .42f),
-                        topLeft = Offset(0f, top),
-                        size = androidx.compose.ui.geometry.Size(size.width, size.height - top),
-                    )
-                }
-            }
-
             Column(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
