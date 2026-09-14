@@ -4,9 +4,9 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -181,9 +181,10 @@ fun H2g2SemanticWorkflowMap(
                 H2g2WorkflowZoomLevel.Band,
                 H2g2WorkflowZoomLevel.Node,
                 -> {
-                    val bandIndex = nodeBandIndices[node.id] ?: return@H2g2WorkflowMap
-                    state.focusNode(node.id, bandIndex)
-                    onNodeSelected(node)
+                    nodeBandIndices[node.id]?.let { bandIndex ->
+                        state.focusNode(node.id, bandIndex)
+                        onNodeSelected(node)
+                    }
                 }
             }
         },
@@ -193,9 +194,10 @@ fun H2g2SemanticWorkflowMap(
                 semanticView = semanticView,
                 state = state,
                 onNodeSelected = { node ->
-                    val bandIndex = nodeBandIndices[node.id] ?: return@semanticZoomGesture
-                    state.focusNode(node.id, bandIndex)
-                    onNodeSelected(node)
+                    nodeBandIndices[node.id]?.let { bandIndex ->
+                        state.focusNode(node.id, bandIndex)
+                        onNodeSelected(node)
+                    }
                 },
             )
             .graphicsLayer {
@@ -222,14 +224,18 @@ internal fun buildSemanticWorkflowView(
 
     return when (zoomLevel) {
         H2g2WorkflowZoomLevel.Overview -> {
-            val overviewBands = bands.mapIndexed { index, band ->
-                H2g2WorkflowBand(listOf(bandSummaryNode(index, band)))
+            val sourceIndices = bands.indices.filter { bands[it].nodes.isNotEmpty() }
+            val overviewBands = sourceIndices.map { index ->
+                H2g2WorkflowBand(listOf(bandSummaryNode(index, bands[index])))
             }
+            val visibleSourceIndices = sourceIndices.toSet()
             val overviewEdges = edges
                 .mapNotNull { edge ->
                     val fromBand = nodeBandIndices[edge.from] ?: return@mapNotNull null
                     val toBand = nodeBandIndices[edge.to] ?: return@mapNotNull null
-                    if (fromBand == toBand) return@mapNotNull null
+                    if (fromBand == toBand || fromBand !in visibleSourceIndices || toBand !in visibleSourceIndices) {
+                        return@mapNotNull null
+                    }
                     H2g2WorkflowEdge(
                         from = bandSummaryId(fromBand),
                         to = bandSummaryId(toBand),
@@ -239,7 +245,7 @@ internal fun buildSemanticWorkflowView(
             H2g2SemanticWorkflowView(
                 bands = overviewBands,
                 edges = overviewEdges,
-                sourceBandIndices = bands.indices.toList(),
+                sourceBandIndices = sourceIndices,
                 selectedId = null,
             )
         }
@@ -298,17 +304,21 @@ private fun subsetView(
     allowedNodeIds: Set<String>?,
     selectedId: String?,
 ): H2g2SemanticWorkflowView {
+    val retainedSourceIndices = mutableListOf<Int>()
     val filteredBands = sourceBandIndices.mapNotNull { sourceIndex ->
         val nodes = bands[sourceIndex].nodes.filter { allowedNodeIds == null || it.id in allowedNodeIds }
-        nodes.takeIf(List<H2g2WorkflowNode>::isNotEmpty)?.let(::H2g2WorkflowBand)
+        if (nodes.isEmpty()) {
+            null
+        } else {
+            retainedSourceIndices += sourceIndex
+            H2g2WorkflowBand(nodes)
+        }
     }
     val visibleNodeIds = filteredBands.flatMap { it.nodes }.mapTo(mutableSetOf()) { it.id }
     return H2g2SemanticWorkflowView(
         bands = filteredBands,
         edges = edges.filter { it.from in visibleNodeIds && it.to in visibleNodeIds },
-        sourceBandIndices = sourceBandIndices.filter { sourceIndex ->
-            bands[sourceIndex].nodes.any { allowedNodeIds == null || it.id in allowedNodeIds }
-        },
+        sourceBandIndices = retainedSourceIndices,
         selectedId = selectedId?.takeIf(visibleNodeIds::contains),
     )
 }
@@ -324,7 +334,7 @@ private fun bandSummaryNode(index: Int, band: H2g2WorkflowBand): H2g2WorkflowNod
         hueSeed = first.hueSeed,
         motionSeed = "semantic-band-$index",
         state = aggregateState(band.nodes),
-        progress = if (taskCount == 0) null else completeCount.toFloat() / taskCount,
+        progress = completeCount.toFloat() / taskCount.toFloat(),
         injected = band.nodes.any(H2g2WorkflowNode::injected),
         detail = null,
     )
@@ -343,9 +353,7 @@ private fun aggregateState(nodes: List<H2g2WorkflowNode>): H2g2WorkflowState = w
 private fun bandSummaryId(index: Int): String = "$BandSummaryPrefix$index"
 
 private fun bandIndexFromSummaryId(id: String): Int? =
-    id.removePrefix(BandSummaryPrefix)
-        .takeIf { id.startsWith(BandSummaryPrefix) }
-        ?.toIntOrNull()
+    if (id.startsWith(BandSummaryPrefix)) id.removePrefix(BandSummaryPrefix).toIntOrNull() else null
 
 private fun Modifier.semanticZoomGesture(
     bands: List<H2g2WorkflowBand>,
@@ -401,9 +409,11 @@ private fun semanticZoomInAt(
     if (!centroid.isSpecified || viewportWidth <= 0f || viewportHeight <= 0f) return
     when (state.zoomLevel) {
         H2g2WorkflowZoomLevel.Overview -> {
+            val visibleIndices = semanticView.sourceBandIndices
+            if (visibleIndices.isEmpty()) return
             val normalizedY = (centroid.y / viewportHeight).coerceIn(0f, .9999f)
-            val bandIndex = floor(normalizedY * bands.size).toInt().coerceIn(bands.indices)
-            state.focusBand(bandIndex)
+            val visibleIndex = floor(normalizedY * visibleIndices.size).toInt().coerceIn(visibleIndices.indices)
+            state.focusBand(visibleIndices[visibleIndex])
         }
 
         H2g2WorkflowZoomLevel.Band,
