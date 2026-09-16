@@ -13,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.geometry.Offset
@@ -21,6 +20,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.composed
 import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.floor
 
@@ -118,7 +118,6 @@ private const val ZoomOutThreshold = 0.86f
  * again moves to a fixed node-neighborhood view. Pinching inward or pressing system Back retreats
  * exactly one semantic level. A single gesture can never skip multiple levels.
  */
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun H2g2SemanticWorkflowMap(
     bands: List<H2g2WorkflowBand>,
@@ -438,7 +437,7 @@ private fun semanticZoomInAt(
     state: H2g2WorkflowViewportState,
     onNodeSelected: (H2g2WorkflowNode) -> Unit,
 ) {
-    if (!centroid.isFinitePoint() || viewportWidth <= 0f || viewportHeight <= 0f) return
+    if (!centroid.isSpecified || viewportWidth <= 0f || viewportHeight <= 0f) return
     when (state.zoomLevel) {
         H2g2WorkflowZoomLevel.Overview -> {
             val visibleIndices = semanticView.sourceBandIndices
@@ -470,5 +469,3 @@ private fun nearestVisibleBandIndex(
     val normalizedY = (y / viewportHeight).coerceIn(0f, .9999f)
     return floor(normalizedY * semanticView.bands.size).toInt().coerceIn(semanticView.bands.indices)
 }
-
-private fun Offset.isFinitePoint(): Boolean = x.isFinite() && y.isFinite()
