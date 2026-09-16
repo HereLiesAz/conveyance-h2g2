@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -81,6 +82,9 @@ data class H2g2TerrariumRelationship(
  * [orchestratorContent] is deliberately host supplied. H2G2 must never procedurally approximate the
  * Haive orchestrator: Haive injects the exact canonical logo character there.
  *
+ * [adornments] are persistent visualized dependencies carried or worn by the downstream creature.
+ * [serviceVisits] are transient outside actors such as the fixed USPR delivery truck.
+ *
  * Dragging is presentation until drop completes. [onNodeDroppedOn] is the semantic boundary: a host
  * may rewrite an editable workflow, stage a revision for a running workflow, or reject the gesture.
  */
@@ -91,6 +95,8 @@ fun H2g2SwarmTerrarium(
     modifier: Modifier = Modifier,
     editable: Boolean = false,
     selectedId: String? = null,
+    adornments: Map<String, List<H2g2SwarmAdornment>> = emptyMap(),
+    serviceVisits: List<H2g2TerrariumServiceVisit> = emptyList(),
     onNodeSelected: (H2g2WorkflowNode) -> Unit = {},
     onNodeMoved: (String, H2g2TerrariumPosition) -> Unit = { _, _ -> },
     onNodeDroppedOn: (String, String) -> Unit = { _, _ -> },
@@ -365,6 +371,12 @@ fun H2g2SwarmTerrarium(
                     )
                 }
 
+                H2g2SwarmAdornmentLayer(
+                    adornments = adornments[node.id].orEmpty(),
+                    hueSeed = node.hueSeed,
+                    modifier = Modifier.matchParentSize(),
+                )
+
                 BasicText(
                     text = node.label.uppercase(),
                     style = h2g2Type().endCap.copy(
@@ -379,6 +391,11 @@ fun H2g2SwarmTerrarium(
                 )
             }
         }
+
+        H2g2TerrariumServiceLayer(
+            visits = serviceVisits,
+            modifier = Modifier.matchParentSize(),
+        )
     }
 }
 
