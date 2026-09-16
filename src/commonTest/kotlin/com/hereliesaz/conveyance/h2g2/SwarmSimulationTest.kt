@@ -76,6 +76,18 @@ class SwarmSimulationTest {
     }
 
     @Test
+    fun `completed interaction releases agents back to autonomous behavior`() {
+        val world = H2g2SwarmWorld(specs)
+        world.beginConference("research", "builder", durationMillis = 120f)
+
+        repeat(3) { world.step(60f) }
+
+        assertTrue(world.activeContacts().isEmpty())
+        assertEquals(H2g2SwarmBehavior.Recover, world.snapshot("research")!!.behavior)
+        assertEquals(H2g2SwarmBehavior.Recover, world.snapshot("builder")!!.behavior)
+    }
+
+    @Test
     fun `habitat edits can move presentation without inventing workflow semantics`() {
         val world = H2g2SwarmWorld(specs)
         world.moveHabitat("research", .72f, .18f, moveCreature = true)
