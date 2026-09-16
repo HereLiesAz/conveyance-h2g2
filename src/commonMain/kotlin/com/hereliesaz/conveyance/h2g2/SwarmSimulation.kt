@@ -122,7 +122,20 @@ class H2g2SwarmWorld(
         val dt = deltaMillis.coerceAtMost(MaxStepMillis)
 
         contacts.forEach { it.ageMillis += dt }
-        contacts.removeAll { it.ageMillis >= it.durationMillis }
+        val expiredContacts = contacts.filter { it.ageMillis >= it.durationMillis }
+        contacts.removeAll(expiredContacts.toSet())
+        expiredContacts
+            .flatMap { listOf(it.sourceId, it.targetId) }
+            .distinct()
+            .forEach { agentId ->
+                val runtime = runtimes[agentId] ?: return@forEach
+                val stillInteracting = contacts.any { it.sourceId == agentId || it.targetId == agentId }
+                if (!stillInteracting && runtime.behavior in InteractionBehaviors) {
+                    runtime.behavior = H2g2SwarmBehavior.Recover
+                    runtime.targetId = null
+                    runtime.behaviorAgeMillis = 0f
+                }
+            }
 
         runtimes.values.forEach { runtime ->
             runtime.behaviorAgeMillis += dt
