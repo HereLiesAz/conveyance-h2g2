@@ -17,6 +17,9 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.geometry.Offset
+// `isSpecified` is a top-level extension val on Offset, not a member -- without this import the
+// whole module fails to compile. It did: this file has never compiled since it was added.
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.composed
