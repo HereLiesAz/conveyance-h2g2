@@ -1,5 +1,16 @@
+# JDK 21: the build's jvmToolchain (gradle/libs.versions.toml).
 jdk:
-  - openjdk17
+  - openjdk21
+
+# The Android target compiles against platform 37. Install it with the image's own sdkmanager,
+# accepting licenses non-interactively; AGP's missing-platform auto-download is the fallback.
+before_install:
+  - |
+    SDKM=$(command -v sdkmanager || ls "${ANDROID_HOME:-/opt/android-sdk-linux}"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1)
+    if [ -n "$SDKM" ]; then
+      yes | "$SDKM" --licenses > /dev/null || true
+      "$SDKM" "platforms;android-37" "build-tools;37.0.0" || true
+    fi
 
 # Scope JitPack's publish to the targets consumers actually resolve (android/desktop/common
 # metadata). The js/wasmJs publications pull in Kotlin's kotlinNpmInstall task, which downloads
