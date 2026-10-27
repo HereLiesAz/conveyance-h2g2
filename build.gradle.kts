@@ -87,6 +87,13 @@ publishing {
             description.set(
                 "The h2g2 style system -- hues, ground-rotation surfaces, workflow routes, and the 8-step Jost type scale -- ported from HG2Gui.",
             )
+            url.set("https://github.com/HereLiesAz/conveyance-h2g2")
+            licenses {
+                license {
+                    name.set("Apache License 2.0")
+                    url.set("https://www.apache.org/licenses/LICENSE-2.0")
+                }
+            }
         }
     }
 }
