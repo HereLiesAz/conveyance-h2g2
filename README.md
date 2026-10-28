@@ -174,7 +174,7 @@ repositories {
     maven("https://jitpack.io")
 }
 dependencies {
-    implementation("com.github.HereLiesAz:conveyance-h2g2:0.5.0")
+    implementation("com.github.HereLiesAz:conveyance-h2g2:0.5.1")
 }
 ```
 
