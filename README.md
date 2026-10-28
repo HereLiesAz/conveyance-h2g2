@@ -21,7 +21,7 @@ Example composable manifest referencing this library:
   "name": "Example",
   "version": "1.0.0",
   "kind": "composable",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "compat": ">=0.1",
   "composable": {
     "library": { "group": "com.hereliesaz.conveyance", "artifact": "conveyance-h2g2", "version": "0.1.0" },
@@ -174,7 +174,7 @@ repositories {
     maven("https://jitpack.io")
 }
 dependencies {
-    implementation("com.github.HereLiesAz:conveyance-h2g2:main-SNAPSHOT")
+    implementation("com.github.HereLiesAz:conveyance-h2g2:0.5.1")
 }
 ```
 
@@ -182,9 +182,6 @@ Resolved via [JitPack](https://jitpack.io) directly from this repository -- `con
 `conveyance-compose` both apply `maven-publish`, which is all JitPack needs, so there is no
 separate publish step to configure.
 
-Conveyance itself has no tagged release yet. This artifact's own dependency on it is therefore
-**pinned to a fixed commit SHA**, not to `main-SNAPSHOT`: a floating snapshot makes KMP metadata
-non-reproducible and can resolve stale per-target publications through JitPack. See the comment on
-that pin in [`build.gradle.kts`](build.gradle.kts) for which revision it names and why that one.
-Consumers of *this* library can still take `main-SNAPSHOT` as above, or pin this repo's own commit
-the same way; switch both to a real tag once one exists.
+This artifact pins its own dependency on Conveyance to the matching `0.5.0` tag, not to
+`main-SNAPSHOT`: a floating snapshot makes KMP metadata non-reproducible and can resolve stale
+per-target publications through JitPack. Consumers can take `main-SNAPSHOT` instead to track `main`.
