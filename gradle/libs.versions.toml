@@ -7,8 +7,14 @@ compileSdk = "37"
 compileSdkMinor = "1"
 minSdk = "24"
 jvmToolchain = "21"
+# The Conveyance release this builds against (JitPack tag). A floating main-SNAPSHOT makes KMP metadata
+# non-reproducible and can resolve stale per-target publications through JitPack, so it is a tag, and
+# Dependabot proposes the next one. The Aive reads this value (its build.gradle.kts).
+conveyance = "0.5.0"
 
 [libraries]
+conveyance-core = { module = "com.github.HereLiesAz.Conveyance:conveyance-core", version.ref = "conveyance" }
+conveyance-compose = { module = "com.github.HereLiesAz.Conveyance:conveyance-compose", version.ref = "conveyance" }
 
 [plugins]
 compose = { id = "org.jetbrains.compose", version.ref = "compose" }

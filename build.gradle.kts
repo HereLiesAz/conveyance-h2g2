@@ -39,12 +39,9 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            // Pinned to Conveyance's 0.5.0 release tag (JitPack build status "ok", all core/compose
-            // target publications present). A floating main-SNAPSHOT makes KMP metadata
-            // non-reproducible and can resolve stale per-target publications through JitPack.
-            val conveyanceRevision = "0.5.0"
-            api("com.github.HereLiesAz.Conveyance:conveyance-core:$conveyanceRevision")
-            api("com.github.HereLiesAz.Conveyance:conveyance-compose:$conveyanceRevision")
+            // The Conveyance release tag is in gradle/libs.versions.toml (`conveyance`), where Dependabot bumps it.
+            api(libs.conveyance.core)
+            api(libs.conveyance.compose)
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.animation)
