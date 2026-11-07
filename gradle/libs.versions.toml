@@ -2,7 +2,7 @@
 agp = "9.5.1"
 gradle = "9.7.1"
 kotlin = "2.4.20"
-compose = "1.12.1"
+compose = "1.12.2"
 compileSdk = "37"
 compileSdkMinor = "1"
 minSdk = "24"
