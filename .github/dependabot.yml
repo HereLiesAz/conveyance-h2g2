@@ -1,0 +1,21 @@
+# Dependabot version updates, so nothing here lags behind: this repo is built inside The Aive, whose
+# own bumps (the Android Gradle plugin above all, which must match in every build of a composite)
+# cannot land while this one is behind.
+#
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # The Gradle build: Kotlin, Compose Multiplatform, AGP.
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+
+  # The workflows themselves, which pin action versions and go stale silently.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
