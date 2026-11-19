@@ -78,6 +78,23 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
   does select the shape (`H2g2Surface.byName`); a `surface` this vocabulary doesn't have leaves
   that template on the shape its name implies rather than collapsing everything to `capsule`.
 
+### Motion: containment and the pill choreography
+
+HG2Gui's motion, lifted here so every app that speaks HG2Gui moves the same way.
+
+- `Nest.kt` — the containment grammar. `H2g2Nest` is a pill that grows into a card holding its options; `NestScope.Nest` opens a child card *inside* that card, and while it is open its siblings collapse into rods (spoken by name). The surface follows depth (`recordTile` → `note` → `well`), the corner radius morphs on the same clock as the size (`NestMorphShape`), and Back closes the innermost open card first.
+- `Motion.kt` — `H2g2Motion` (the page ease, animator-scale `durationScale`, `innerHue` for a child's fill), `StackEntrance` arrivals, `staggerDelayMs`/`stackInterval`, and the additive `wobble` sway.
+- `BreakFree.kt` — the run transition's beats 1–3: stretch, break free, fly, thud, fall (and their reverse).
+- `PerimeterReveal.kt` — `H2g2PerimeterReveal`: a picked pill runs the screen's perimeter edge by edge and floods into the page it opens. Tap skips; reduced motion shows the end state.
+- `SlotReel.kt` — `rememberSlotReelScroll`: a stack positioned by animated offsets scrolls by drag and a fling lands on a row boundary.
+
+~~~kotlin
+H2g2Nest(label = "Hive", hue = hue) {
+    Nest("Roles") { Option("Queen") { pick("queen") } }
+    Option("Rename") { rename() }
+}
+~~~
+
 ### The workflow/terrarium subsystem
 
 The same package also holds a considerably larger body of work than the style tokens above: a
