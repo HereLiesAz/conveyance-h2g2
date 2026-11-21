@@ -7,9 +7,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.LinearGradientShader
+import androidx.compose.ui.graphics.Shader
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.SolidColor
 import com.hereliesaz.conveyance.h2g2.H2g2.contrastingText
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * A named background theme: a flat [page] color plus a lighter [foldLight] and darker
@@ -75,14 +84,32 @@ private const val FOLD_HIGHLIGHT_STOP_AFTER = 0.54f
  */
 fun Ground.pageBrush(): Brush = SolidColor(page)
 
-/** The five-stop fold-crease gradient: [Ground.page] with a light/dark/light seam down the middle. */
-fun Ground.foldBrush(): Brush = Brush.linearGradient(
-    0f to page,
-    FOLD_HIGHLIGHT_STOP_BEFORE to foldLight,
-    FOLD_CENTER_STOP to foldDark,
-    FOLD_HIGHLIGHT_STOP_AFTER to foldLight,
-    1f to page,
-)
+// The style guide's `--page-gradient` runs at 100deg: left to right, tipped ten degrees clockwise,
+// so the seam stands almost upright down the middle of the spread.
+private const val FOLD_ANGLE_DEG = 100.0
+
+/**
+ * The printed spread: [Ground.page] with a light/dark/light seam down the centre, at the style
+ * guide's own 100 degrees. Sized to whatever it paints, as a CSS `linear-gradient` is.
+ */
+fun Ground.foldBrush(): Brush = object : ShaderBrush() {
+    override fun createShader(size: Size): Shader {
+        val angle = FOLD_ANGLE_DEG * PI / HALF_TURN_DEG
+        val dx = sin(angle).toFloat()
+        val dy = -cos(angle).toFloat()
+        // CSS gradient-line length: the box projected onto the gradient's direction.
+        val half = (abs(size.width * dx) + abs(size.height * dy)) / 2f
+        val center = Offset(size.width / 2f, size.height / 2f)
+        return LinearGradientShader(
+            from = Offset(center.x - dx * half, center.y - dy * half),
+            to = Offset(center.x + dx * half, center.y + dy * half),
+            colors = listOf(page, foldLight, foldDark, foldLight, page),
+            colorStops = listOf(0f, FOLD_HIGHLIGHT_STOP_BEFORE, FOLD_CENTER_STOP, FOLD_HIGHLIGHT_STOP_AFTER, 1f),
+        )
+    }
+}
+
+private const val HALF_TURN_DEG = 180.0
 
 /** Readable ink/white text color against this [Ground]'s [Ground.page]. */
 val Ground.onPage: Color get() = page.contrastingText()
