@@ -8,14 +8,16 @@ direction as documents.
 
 - [x] Foundation: tokens brought up to HG2Gui's current values, Azrienoch, theme root, primitives
 - [x] Documents: `docs/design`, `docs/brand`, `docs/art-direction`
-- [ ] Pill menu: the breadcrumb pill stack with its entrances, trail, host drop and run transition
-- [ ] Files: explorer with tile/rod morph and open/close transitions, folder picker, path picker, storage, markdown preview
-- [ ] Guide: reader, command guide, linked text
-- [ ] Components: confirm dialog, job progress bar, typeset output, ASCII art, editor, store, AI chat, back-step, composer keys
-- [ ] Terminal: terminal screen, fluid workspace, shell status, full-screen terminal, adaptive TUI
-- [ ] Settings family: settings, AI settings, MCP server, environment, history
-- [ ] README and `docs/README.md` index; version bump
-- [ ] Verify: desktop tests, Android/JS/Wasm compile, a rendered desktop gallery
+- [x] Pill menu: the breadcrumb pill stack with its entrances, trail, host drop and run transition
+- [x] Files: explorer with tile/rod morph and open/close transitions, folder picker, path picker, storage, markdown preview
+- [x] Guide: reader, command guide, linked text
+- [x] Components: confirm dialog, job progress bar, typeset output, ASCII art, editor, store, AI chat, back-step, composer keys
+- [x] Terminal: terminal screen, fluid workspace, shell status, full-screen terminal, adaptive TUI
+- [x] Settings family: settings, AI settings, MCP server, environment, history, isolation audit
+- [x] Splash, built from `docs/design/HG2Gui Splash.html`
+- [x] Pill menu placements: top/bottom, left/right (`PillMenuPlacement`)
+- [x] README and `docs/README.md` index; version bump
+- [x] Verify: desktop tests, Android/JS/Wasm compile, a rendered desktop gallery
 
 ## Porting rules (every unit follows these)
 
@@ -53,4 +55,26 @@ No Material dependency. Other Material widgets (`AlertDialog`, `OutlinedTextFiel
 
 ## Review
 
-(filled in when done)
+Done at HG2Gui `0d8edf6`. `./gradlew desktopTest`: 356 tests, 0 failures. `compileAndroidMain`,
+`compileKotlinJs`, `compileKotlinWasmJs` pass. Rendered frames in `build/gallery/` were looked at for
+the splash, primitives, pill menu (all four placements), confirm dialog, file manager open morph,
+Guide wipe, terminal screen and full-screen terminal grid.
+
+Not verified: anything on a device. Android, JS and Wasm are compiled only; tests run on desktop.
+
+Deliberate departures from HG2Gui:
+
+- No global ground: `LocalH2g2Ground` / `GroundState` instead of `Azphalt.currentGround`.
+- No Material: an internal `Text` over foundation; the Adaptive TUI's progress bar, text field and
+  branch chooser were rebuilt from foundation.
+- Engines stay with the host: completion bridge, alias probe, AI intent analysis, TUI parser, PTY.
+  They are parameters with inert defaults.
+- Adaptive TUI checkbox/radio toggle sends a space. HG2Gui's sent nothing (its key lookup returned
+  null), so every toggle reported "did not acknowledge".
+- Isolation-audit timestamps default to UTC ISO text; pass `formatTimestamp` for a localized one.
+- `H2g2FilesReveal`: flipping `visible` back during a close replays the open; HG2Gui ignored it.
+- System Back is not handled inside screens: they report levels through `BackStepState`, as in
+  HG2Gui, and the host owns the one back handler.
+
+Not ported: the command, authority and package-lifecycle menu trees (HG2Gui's data, not its
+design).

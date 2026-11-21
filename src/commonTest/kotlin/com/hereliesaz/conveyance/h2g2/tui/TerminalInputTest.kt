@@ -1,5 +1,7 @@
 package com.hereliesaz.conveyance.h2g2.tui
 
+import com.hereliesaz.conveyance.h2g2.terminal.ShellFamily
+import com.hereliesaz.conveyance.h2g2.terminal.ShellPresentation
 import androidx.compose.ui.input.key.Key
 import kotlin.test.Test
 import kotlin.test.assertContentEquals

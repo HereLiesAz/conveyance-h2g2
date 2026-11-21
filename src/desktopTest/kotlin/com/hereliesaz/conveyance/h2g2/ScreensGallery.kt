@@ -22,6 +22,9 @@ import com.hereliesaz.conveyance.h2g2.menu.PillMenuPlacement
 import com.hereliesaz.conveyance.h2g2.terminal.H2g2TerminalScreen
 import com.hereliesaz.conveyance.h2g2.terminal.SessionUiState
 import com.hereliesaz.conveyance.h2g2.terminal.TerminalHistoryEntry
+import com.hereliesaz.conveyance.h2g2.tui.FullScreenTerminalSession
+import com.hereliesaz.conveyance.h2g2.tui.H2g2FullScreenTerminalScreen
+import com.hereliesaz.conveyance.h2g2.tui.TerminalGrid
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -160,6 +163,32 @@ class ScreensGallery {
 
     @Test
     fun terminalScreen() = terminal("terminal", PillMenuPlacement.BottomRight)
+
+    @Test
+    fun fullScreenTerminal() = script("tui", content = {
+        val session = remember {
+            object : FullScreenTerminalSession {
+                override val commandLine = "vim notes.txt"
+                override val exitCode: Int? = null
+                override val grid = TerminalGrid.ofText(
+                    listOf(
+                        "  1 Don't panic.",
+                        "  2 A towel is about the most massively useful",
+                        "  3 thing an interstellar hitchhiker can have.",
+                        "~", "~", "~",
+                        "-- INSERT --                      3,44   All",
+                    ),
+                    cursorRow = 2, cursorColumn = 47,
+                )
+                override fun updateSize(columns: Int, rows: Int, cellWidthPx: Int, cellHeightPx: Int) = Unit
+                override fun sendText(text: String) = Unit
+                override fun kill() = Unit
+            }
+        }
+        H2g2Theme(mustard) { H2g2FullScreenTerminalScreen(session = session, onExit = {}) }
+    }) {
+        step(800); shot("raw")
+    }
 
     private companion object {
         const val NANOS_PER_MS = 1_000_000L

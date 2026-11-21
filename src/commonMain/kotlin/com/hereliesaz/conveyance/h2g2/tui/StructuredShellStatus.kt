@@ -1,5 +1,7 @@
 package com.hereliesaz.conveyance.h2g2.tui
 
+import com.hereliesaz.conveyance.h2g2.terminal.ShellFamily
+import com.hereliesaz.conveyance.h2g2.terminal.ShellPresentation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll

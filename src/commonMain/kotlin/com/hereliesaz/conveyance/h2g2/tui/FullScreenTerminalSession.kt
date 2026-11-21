@@ -1,5 +1,6 @@
 package com.hereliesaz.conveyance.h2g2.tui
 
+import com.hereliesaz.conveyance.h2g2.terminal.ShellPresentation
 import androidx.compose.runtime.Stable
 import kotlinx.coroutines.delay
 
