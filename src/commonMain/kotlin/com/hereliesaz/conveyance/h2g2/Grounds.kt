@@ -21,9 +21,10 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * A named background theme: a flat [page] color plus a lighter [foldLight] and darker
- * [foldDark] variant of the same hue, painted as a crease down the middle of the screen rather
- * than a flat fill. Ported from HG2Gui's own `Azphalt.Ground`, values unchanged.
+ * A named background theme: a flat [page] color, which is what [pageBrush] paints, plus a
+ * lighter [foldLight] and darker [foldDark] variant of the same hue for the crease [foldBrush]
+ * draws down the middle of the printed spread. Ported from HG2Gui's own `Azphalt.Ground`, values
+ * unchanged.
  */
 data class Ground(
     val name: String,

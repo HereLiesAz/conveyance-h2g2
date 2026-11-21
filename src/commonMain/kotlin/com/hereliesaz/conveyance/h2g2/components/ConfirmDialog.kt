@@ -175,8 +175,8 @@ fun H2g2ConfirmDialog(
                             .weight(1f)
                             .defaultMinSize(minHeight = H2g2Dimens.MinTouch)
                             .clip(H2g2Surface.capsule)
-                            // hues[6] is the same "red - primary / run" acquire hue AzphaltColors
-                            // marks as the destructive/primary-action tone elsewhere in the app.
+                            // hues[6] is the "red - primary / run" hue the style guide marks as
+                            // the destructive/primary-action tone.
                             .background(confirmTint)
                             .clickable(role = Role.Button, onClick = onConfirm),
                         contentAlignment = Alignment.Center

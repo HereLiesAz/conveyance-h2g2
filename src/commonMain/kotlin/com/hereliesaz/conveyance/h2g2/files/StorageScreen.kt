@@ -45,7 +45,7 @@ import com.hereliesaz.conveyance.h2g2.components.H2g2ConfirmDialog
  * breakdown, the worst offenders named, and the trash (with how long each item has left).
  */
 
-// docs/HG2Gui File Manager.html's own mock predates this taxonomy - it illustrates a 4-category
+// docs/design/HG2Gui File Manager.html's own mock predates this taxonomy - it illustrates a 4-category
 // example (Source/Photos/Documents/Other) from before Code and Archives existed as their own
 // categories (VfsManager.kt's real StorageCategory has 5). Kept as an illustrative mock rather
 // than updated to match, but noted here so the two not lining up reads as known drift, not an

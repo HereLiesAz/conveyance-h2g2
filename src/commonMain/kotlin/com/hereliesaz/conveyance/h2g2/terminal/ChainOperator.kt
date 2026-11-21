@@ -1,7 +1,7 @@
 package com.hereliesaz.conveyance.h2g2.terminal
 
 /**
- * W3 (docs/HG2Gui Termux Coverage.dc.html): the pill menu builds one command as a flat token
+ * W3 (docs/design/HG2Gui Termux Coverage.dc.html): the pill menu builds one command as a flat token
  * list, with no representation for the composition that makes a shell a shell - pipes, chains,
  * redirects. Rather than parse or model a real shell grammar, this keeps the same one-segment-
  * at-a-time menu language and just lets a segment fold into a growing literal prefix ahead of

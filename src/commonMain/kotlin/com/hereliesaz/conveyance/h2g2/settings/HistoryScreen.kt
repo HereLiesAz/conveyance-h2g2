@@ -75,7 +75,7 @@ data class HistoryState(
 )
 
 /**
- * W5 (docs/HG2Gui Termux Coverage.dc.html): "no cross-session scrollback/history search" - every
+ * W5 (docs/design/HG2Gui Termux Coverage.dc.html): "no cross-session scrollback/history search" - every
  * tab's own up/down-arrow recall is in-memory and per-session; this searches the host's
  * persistent, cross-session log instead. Selecting a result hands the command text back to the
  * caller (dropped into the active tab's input, same as arrow recall already does) rather than

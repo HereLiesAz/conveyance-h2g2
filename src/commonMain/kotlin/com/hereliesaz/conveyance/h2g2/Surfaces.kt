@@ -7,7 +7,7 @@ import androidx.compose.ui.unit.dp
 /**
  * h2g2's surface vocabulary. [recordTile]/[note] are the source-code-defined `AzphaltSurface`
  * (`ui/theme/AzphaltSurface.kt`); [well] is a fourth shape that object doesn't name but the
- * actual design mockups (`docs/HG2Gui Surfaces.dc.html`) use consistently -- an 18dp-radius,
+ * actual design mockups (HG2Gui's `Surfaces` sheet) use consistently -- an 18dp-radius,
  * ink-background container for raw/monospace output (command results, network status, a context
  * switch's confirmation), independent of whether it's nested inside a [recordTile] or standing on
  * its own. Everything else resolves to the fully-rounded [capsule]. There is deliberately no
@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
  *
  * [note] is not a lesser or unreconciled shape despite the file-explorer's own
  * `folderTileShape(isOpen, width)` (`ui/files/FilesScreen.kt`) picking between all three of
- * [recordTile]/[note]/[capsule] by state and size -- reading only `docs/DESIGN.md` (which is
+ * [recordTile]/[note]/[capsule] by state and size -- reading only `docs/design/DESIGN.md` (which is
  * scoped to the pill menu specifically, not the whole app) suggests otherwise, but the file
  * explorer's own code treats all three as equally deliberate.
  */
