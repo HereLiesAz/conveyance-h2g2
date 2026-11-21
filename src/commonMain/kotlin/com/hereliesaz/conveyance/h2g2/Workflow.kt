@@ -510,7 +510,7 @@ private fun H2g2WorkflowSubject(
     val hue = H2g2.hues[hueIndex]
     val cap = H2g2.caps[hueIndex]
     val text = hue.contrastingText()
-    val type = h2g2Type()
+    val type = currentH2g2Type()
     val arrival = remember(node.id) { Animatable(0f) }
     val activeScale by animateFloatAsState(
         targetValue = when {

@@ -1,12 +1,14 @@
 package com.hereliesaz.conveyance.h2g2
 
 import androidx.compose.foundation.background
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import com.hereliesaz.conveyance.h2g2.H2g2.contrastingText
 
 /**
@@ -67,8 +69,14 @@ private const val FOLD_HIGHLIGHT_STOP_BEFORE = 0.46f
 private const val FOLD_CENTER_STOP = 0.5f
 private const val FOLD_HIGHLIGHT_STOP_AFTER = 0.54f
 
-/** The five-stop fold-crease gradient this [Ground] paints as a background. */
-fun Ground.pageBrush(): Brush = Brush.linearGradient(
+/**
+ * The page background for this [Ground]: a flat fill, as HG2Gui paints it ("the page is yellow.
+ * Not black, not white."). The crease is [foldBrush], kept for a host that wants the printed fold.
+ */
+fun Ground.pageBrush(): Brush = SolidColor(page)
+
+/** The five-stop fold-crease gradient: [Ground.page] with a light/dark/light seam down the middle. */
+fun Ground.foldBrush(): Brush = Brush.linearGradient(
     0f to page,
     FOLD_HIGHLIGHT_STOP_BEFORE to foldLight,
     FOLD_CENTER_STOP to foldDark,
@@ -81,3 +89,17 @@ val Ground.onPage: Color get() = page.contrastingText()
 
 /** Paints [Ground.pageBrush] as this modifier's background. */
 fun Modifier.ground(ground: Ground): Modifier = background(ground.pageBrush())
+
+/**
+ * The ground the composables beneath are drawn on. HG2Gui reads a process-wide
+ * `Azphalt.currentGround`; a library cannot own global state for its host, so every ported
+ * component reads this instead. [H2g2Theme] provides it from a [GroundState] and recomposes on a
+ * reroll. Outside a theme it is Mustard, the primary ground, so a component still renders.
+ */
+val LocalH2g2Ground = compositionLocalOf { grounds.first() }
+
+/**
+ * The [GroundState] behind [LocalH2g2Ground], for the few controls that reroll the ground. Null
+ * outside an [H2g2Theme]: those controls then do nothing rather than fail.
+ */
+val LocalH2g2GroundState = compositionLocalOf<GroundState?> { null }

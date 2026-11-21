@@ -6,6 +6,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.keyframes
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -38,7 +39,26 @@ object H2g2Motion {
     }
 
     /** [ms] stretched by [durationScale]; wrap every choreographing `delay()` in it. */
-    fun scaledDelayMs(ms: Int): Long = (ms * durationScale).roundToLong()
+    fun scaledDelayMs(ms: Int): Long = scaledDelayMs(ms.toLong())
+
+    /** Long form of [scaledDelayMs]. */
+    fun scaledDelayMs(ms: Long): Long = (ms * durationScale).roundToLong()
+
+    // The pill menu's own clocks (HG2Gui's `Azphalt.SLIDE_MS` and friends), unchanged.
+    const val SLIDE_MS = 420 / 3
+    const val DROP_MS = 420 / 3
+    const val SWING_MS = 520 / 3
+    const val LIFT_FRACTION = 0.90f
+
+    /**
+     * How much of a Cascade/Telescope row's own motion its fade-in takes: fast enough that the
+     * parked, pre-swing pill never flashes into view, short enough that the swing itself plays out
+     * visibly instead of hiding behind it.
+     */
+    const val REVEAL_FRACTION = 1f / 6f
+
+    /** A capsule revealed by growing in length ([StackEntrance.Unfold], the perimeter flood). */
+    const val UNFOLD_MS = 420
 
     /**
      * A child surface's fill inside a parent of [parentHue] at [depth]: the same hue pulled toward
@@ -51,6 +71,20 @@ object H2g2Motion {
     private const val INNER_HUE_STEP = 0.14f
     private const val INNER_HUE_MAX = 0.5f
 }
+
+/** Top-level form of [H2g2Motion.scaledDelayMs], as HG2Gui's call sites spell it. */
+fun scaledDelayMs(ms: Long): Long = H2g2Motion.scaledDelayMs(ms)
+
+/** Int overload of [scaledDelayMs] for the many millisecond constants that are Ints. */
+fun scaledDelayMs(ms: Int): Long = H2g2Motion.scaledDelayMs(ms)
+
+/**
+ * True when the person turned animations off. Recomposes if the setting changes. When it is true,
+ * skip entrance and hand-off flourishes outright (show the end state) rather than playing them at
+ * zero length; decorative loops should not start at all.
+ */
+@Composable
+fun rememberReducedMotion(): Boolean = H2g2Motion.reduced
 
 // Lottery tickets, not a percentage - see [StackEntrance.roll].
 private const val WEIGHT_HOUSE = 4

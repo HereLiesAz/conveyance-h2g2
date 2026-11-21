@@ -25,6 +25,8 @@ kotlin {
         namespace = "com.hereliesaz.conveyance.h2g2"
         compileSdk = libs.versions.compileSdk.get().toInt()
         minSdk = libs.versions.minSdk.get().toInt()
+        // Compose resources (the Azrienoch cuts, strings) are packaged as Android assets.
+        androidResources { enable = true }
     }
     jvm("desktop")
     js {
@@ -47,6 +49,8 @@ kotlin {
             implementation(compose.animation)
             implementation(compose.ui)
             implementation("org.jetbrains.compose.ui:ui-backhandler:1.12.2")
+            // Azrienoch (the bundled typeface) and the ported screens' strings are Compose resources.
+            implementation(compose.components.resources)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
@@ -57,12 +61,24 @@ kotlin {
             @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
             implementation(compose.uiTest)
         }
+        androidMain.dependencies {
+            // WindowCompat, for H2g2Theme's status/navigation-bar icon tint (Theme.android.kt).
+            implementation("androidx.core:core-ktx:1.19.1")
+        }
         val desktopTest by getting {
             dependencies {
                 implementation(compose.desktop.currentOs)
             }
         }
     }
+}
+
+// The generated `Res` class stays internal: a host reads the typeface through
+// `azrienochFontFamily()` and friends (Type.kt), never through this library's resource ids.
+compose.resources {
+    packageOfResClass = "com.hereliesaz.conveyance.h2g2.resources"
+    publicResClass = false
+    generateResClass = always
 }
 
 // Kotlin Multiplatform registers one publication per target on its own; there is nothing to

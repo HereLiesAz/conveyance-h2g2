@@ -101,7 +101,7 @@ object Templates {
 fun RecordTile(request: ComposableRequest) {
     val hue = H2g2.hues[H2g2.indexOf(request.hueSeed)]
     val textColor = hue.contrastingText()
-    val type = h2g2Type()
+    val type = currentH2g2Type()
     val shape = request.surfaceShape(H2g2Surface.recordTile)
     Offer(act = request.act, modifier = Modifier.wrapContentSize()) {
         Box(
@@ -146,7 +146,7 @@ fun RecordTileWithWell(request: ComposableRequest) {
     val hue = H2g2.hues[H2g2.indexOf(request.hueSeed)]
     val textColor = hue.contrastingText()
     val lines = request.detailLines
-    val type = h2g2Type()
+    val type = currentH2g2Type()
     val shape = request.surfaceShape(H2g2Surface.recordTile)
     Offer(act = request.act, modifier = Modifier.wrapContentSize()) {
         Column(
@@ -188,7 +188,7 @@ fun RecordTileWithWell(request: ComposableRequest) {
 fun NoteTile(request: ComposableRequest) {
     val hue = H2g2.hues[H2g2.indexOf(request.hueSeed)]
     val textColor = hue.contrastingText()
-    val type = h2g2Type()
+    val type = currentH2g2Type()
     val shape = request.surfaceShape(H2g2Surface.note)
     Offer(act = request.act, modifier = Modifier.wrapContentSize()) {
         Box(
@@ -234,7 +234,7 @@ fun ActionPill(request: ComposableRequest) {
         ) {
             BasicText(
                 text = request.label,
-                style = h2g2Type().step(request.scale).copy(color = hue.contrastingText()),
+                style = currentH2g2Type().step(request.scale).copy(color = hue.contrastingText()),
             )
         }
     }
@@ -254,7 +254,7 @@ private fun EndCap(text: String, hueIndex: Int) {
             .background(cap)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
-        BasicText(text = text, style = h2g2Type().endCap.copy(color = cap.contrastingText()))
+        BasicText(text = text, style = currentH2g2Type().endCap.copy(color = cap.contrastingText()))
     }
 }
 
@@ -281,7 +281,7 @@ fun CappedPill(request: ComposableRequest) {
         ) {
             BasicText(
                 text = request.label,
-                style = h2g2Type().step(request.scale).copy(color = hue.contrastingText()),
+                style = currentH2g2Type().step(request.scale).copy(color = hue.contrastingText()),
             )
             request.endCapText?.let {
                 Box(modifier = Modifier.padding(start = 10.dp)) { EndCap(it, hueIndex) }
@@ -314,7 +314,7 @@ fun CappedRecordTile(request: ComposableRequest) {
         ) {
             BasicText(
                 text = request.label,
-                style = h2g2Type().step(request.scale).copy(color = textColor),
+                style = currentH2g2Type().step(request.scale).copy(color = textColor),
             )
             request.endCapText?.let {
                 Box(modifier = Modifier.padding(start = 12.dp)) { EndCap(it, hueIndex) }

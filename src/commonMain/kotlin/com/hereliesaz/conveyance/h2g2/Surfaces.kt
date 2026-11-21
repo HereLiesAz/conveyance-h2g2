@@ -20,10 +20,12 @@ import androidx.compose.ui.unit.dp
  * explorer's own code treats all three as equally deliberate.
  */
 object H2g2Surface {
-    val recordTile: Shape = RoundedCornerShape(26.dp)
-    val note: Shape = RoundedCornerShape(20.dp)
-    val well: Shape = RoundedCornerShape(18.dp)
-    val capsule: Shape = RoundedCornerShape(percent = 50)
+    // Typed as RoundedCornerShape (it is one) so a caller can read or copy the corner sizes, as
+    // HG2Gui's file tiles do when they morph between these shapes.
+    val recordTile: RoundedCornerShape = RoundedCornerShape(26.dp)
+    val note: RoundedCornerShape = RoundedCornerShape(20.dp)
+    val well: RoundedCornerShape = RoundedCornerShape(18.dp)
+    val capsule: RoundedCornerShape = RoundedCornerShape(percent = 50)
 
     /**
      * Looks up a shape by the composable manifest's `surface` string (azphalt
