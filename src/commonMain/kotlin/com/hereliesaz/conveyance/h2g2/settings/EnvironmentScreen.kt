@@ -47,7 +47,7 @@ data class EnvironmentState(
 )
 
 /**
- * W4 (docs/HG2Gui Termux Coverage.dc.html): "no environment/PATH visibility or editing" - a
+ * W4 (docs/design/HG2Gui Termux Coverage.dc.html): "no environment/PATH visibility or editing" - a
  * read-only view of the same bootstrap env every command in the app actually runs under
  * (the map the host builds each session from), so at least the "visibility" half of that gap has
  * an honest answer.

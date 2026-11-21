@@ -1,39 +1,71 @@
 # conveyance-h2g2
 
-A composable-set library for [Conveyance](https://github.com/HereLiesAz/Conveyance): the h2g2 design system -- hues, grounds, the Azrienoch type scale, motion, and every screen and component of HG2Gui as a callable composable.
+The h2g2 design system as a Compose Multiplatform library: HG2Gui's hues, grounds, Azrienoch type
+scale and motion, and every one of its screens and components as a composable you call. A
+composable-set library for [Conveyance](https://github.com/HereLiesAz/Conveyance).
 
-## What this is
+Targets Android, desktop JVM, JS and Wasm. No Material dependency.
 
-Per [azphalt's `spec/composable.md`](https://github.com/HereLiesAz/azphalt/blob/main/spec/composable.md),
-a `kind: "composable"` `.azp` package is a **pure header**: it names this artifact's Gradle
-coordinates (`library.group` / `library.artifact`) and selects a `templateId`, `hue`,
-`surface`, `scale`, and `act` from it. It carries no code of its own. This repository *is* the
-artifact a composable package's `library` block points at -- the `.azp` package itself is
-authored and published separately, wherever its author chooses; this repo does not need to hold
-one.
+| Read | For |
+| --- | --- |
+| [`docs/USAGE.md`](docs/USAGE.md) | How to call each surface, with host wiring. |
+| [`docs/README.md`](docs/README.md) | The design documents this implements. |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed, and what changed under existing callers. |
 
-Example composable manifest referencing this library:
+## Using it
 
-```jsonc
-{
-  "azphalt": "0.1",
-  "id": "com.hereliesaz.azphalt.example",
-  "name": "Example",
-  "version": "1.0.0",
-  "kind": "composable",
-  "license": "Apache-2.0",
-  "compat": ">=0.1",
-  "composable": {
-    "library": { "group": "com.hereliesaz.conveyance", "artifact": "conveyance-h2g2", "version": "0.1.0" },
-    "elements": [
-      { "id": "confirm-record", "templateId": "h2g2.tile.record", "hue": "confirm-record", "surface": "recordTile", "scale": "lead", "act": "create", "jobs": ["confirms a destructive action"] }
-    ]
-  },
-  "files": {}
+~~~kotlin
+repositories {
+    maven("https://jitpack.io")
 }
-```
+dependencies {
+    implementation("com.github.HereLiesAz:conveyance-h2g2:main-SNAPSHOT")
+}
+~~~
 
-## What's here
+Resolved via [JitPack](https://jitpack.io) directly from this repository. The HG2Gui port landed on
+`main` after the `0.5.1` tag, so `0.5.1` is the tokens, templates, nest and workflow only; take
+`main-SNAPSHOT`, or a commit hash, for the surfaces until the next tag.
+
+This artifact pins its own dependency on Conveyance to the `0.5.0` tag, not to `main-SNAPSHOT`: a
+floating snapshot makes KMP metadata non-reproducible and can resolve stale per-target publications
+through JitPack.
+
+~~~kotlin
+H2g2Theme {
+    H2g2PillMenu(
+        roots = listOf(MenuNode("pkg", "Package management", children = listOf(MenuNode("install", "install")))),
+        placement = PillMenuPlacement.TopRight, // top of the screen; the stack falls downward
+        onRun = { tokens, complete -> if (complete) run(tokens) },
+    )
+}
+~~~
+
+The library draws and moves; the host does the work. A shell, a filesystem, an AI client or a
+preference store is a parameter or a callback, never something this library owns.
+
+## The surfaces
+
+Every HG2Gui screen and component, with its animations built in. Wrap a screen in `H2g2Theme` for the
+rolled ground, the content colour, the UI scale and (on Android) the system animator scale and
+window tint; every piece also works outside it, on Mustard.
+
+| Package | What it holds |
+| --- | --- |
+| root | `H2g2Theme`; `H2g2Chip`, `H2g2Heading`, `statusColor`, `readableOn`, `contrastRatio`, `Modifier.minTouch`, `screenInsets`, `maxContentWidth` (`Primitives.kt`); `H2g2Splash`, the hand that counts four, then two, then approves. |
+| `menu` | `H2g2PillMenu`: the breadcrumb pill stack. Right-anchored pills, the eleven-way entrance lottery, the host drop, the child cascade, the shingled trail, slot-reel scrolling. `PillMenuPlacement` mirrors it into any corner: `BottomRight` (the house stack), `TopRight` (top of the screen, growing downward), `BottomLeft`, `TopLeft`. |
+| `files` | `H2g2FilesScreen`: folder tiles that morph open into cards while their siblings collapse to rods, nested levels, selection, in-place preview. `H2g2FilesReveal` (the perimeter-run open and close), `H2g2FolderPicker`, `H2g2PathPickerScreen`, `H2g2StorageScreen`, `H2g2MarkdownPreview`. |
+| `guide` | `H2g2GuideReaderScreen`, `H2g2CommandGuideScreen`, `H2g2GuideLinkedText` (prose whose commands are tappable). Takes any `GuideContent`; `HitchhikersGuideToTermux` is the default. |
+| `terminal` | `H2g2TerminalScreen`: session tabs, shell status line, output cards, the pill stack, the composer and RUN. `H2g2FluidTerminalWorkspace`, `H2g2ShellStatusLine`, `H2g2LiveStatusStrip`, `H2g2ComposerKeys`, and the completion, alias and chaining models. |
+| `tui` | `H2g2FullScreenTerminalScreen` (the Azrienoch Mono grid, key rows, gestures) and `H2g2AdaptiveTuiScreen` (menus, tabs, lists, tables and prompts projected from a running terminal app, with the RAW fallback). |
+| `components` | `H2g2ConfirmDialog`, `H2g2JobProgressBar`, `H2g2TypesetOutput` with `H2g2KeyValueTable`, `H2g2WideTableRecords`, `H2g2AsciiArtCanvas`; `StyledSpan`, `BackStepState`. |
+| `screens` | `H2g2EditorScreen`, `H2g2AzpStoreScreen`, `H2g2AiChatScreen`. |
+| `settings` | `H2g2SettingsScreen`, `H2g2AiSettingsScreen`, `H2g2McpServerScreen`, `H2g2EnvironmentScreen`, `H2g2HistoryScreen`, `H2g2IsolationAuditScreen`. |
+
+
+Signatures and wiring for each are in [`docs/USAGE.md`](docs/USAGE.md).
+
+## The tokens
 
 Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged unless noted:
 
@@ -53,10 +85,10 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
   on any other family.
 - **`H2g2Surface`** (`Surfaces.kt`) -- **four** shapes: `recordTile`/`note`, from the source-code
   `AzphaltSurface` object, plus `well` (18dp) -- a shape that object doesn't name, but the actual
-  design mockups (`docs/HG2Gui Surfaces.dc.html`) use consistently: an ink-background container
+  design mockups (HG2Gui's `Surfaces` sheet) use consistently: an ink-background container
   for raw/monospace output, nested inside a `recordTile` or standing on its own. Everything else
   is the fully-rounded `capsule`. `note` is not a lesser shape despite one design doc
-  (`docs/DESIGN.md`, which is scoped to the pill menu specifically) suggesting otherwise -- the
+  (`docs/design/DESIGN.md`, which is scoped to the pill menu specifically) suggesting otherwise -- the
   file explorer's own `folderTileShape(isOpen, width)` picks between all three of
   `recordTile`/`note`/`capsule` by state and size, treating them as equally deliberate.
 - **`H2g2Page`** (`Page.kt`) -- the one-line convenience for painting a `Ground` behind a whole
@@ -72,8 +104,8 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
   element, an `eyebrow`-step `subtitle` label *above* the body line -- a note is labeled before
   it's read, not captioned after), `h2g2.pill.action` (a plain `capsule`-shaped element), and
   `h2g2.pill.capped` (a `capsule` with `endCapText`) -- all `Offer`-backed, hue-colored via
-  `indexOf`, type-set via `h2g2Type().step(scale)`. The two `.capped` templates are the first to
-  use `H2g2.caps` and the `endCap` type step, both previously ported but unused -- `docs/DESIGN.md`
+  `indexOf`, type-set via `currentH2g2Type().step(scale)`. The two `.capped` templates are the first to
+  use `H2g2.caps` and the `endCap` type step, both previously ported but unused -- `docs/design/DESIGN.md`
   §2's own "label and end-cap sit together at the right end," read for a natural-width tile/pill
   rather than the pill menu's own anchored, overhung ones, with the "darker mate on the end-cap"
   coloring from §7 ("Unchanged from Azphalt") layered on top. Every one of them clips to
@@ -81,40 +113,7 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
   does select the shape (`H2g2Surface.byName`); a `surface` this vocabulary doesn't have leaves
   that template on the shape its name implies rather than collapsing everything to `capsule`.
 
-### The surfaces: HG2Gui's UI, callable
-
-Every HG2Gui screen and component, as a composable with its animations built in. App logic never
-came along: a shell, a filesystem, an AI client or a preference store is a parameter or a callback.
-Wrap a screen in `H2g2Theme` for the rolled ground, the content colour, the UI scale and (on
-Android) the system animator scale and window tint; every piece also works outside it, on Mustard.
-
-~~~kotlin
-H2g2Theme {
-    H2g2PillMenu(
-        roots = listOf(MenuNode("pkg", "Package management", children = listOf(MenuNode("install", "install")))),
-        placement = PillMenuPlacement.TopRight, // top of the screen; the stack falls downward
-        onRun = { tokens, complete -> if (complete) run(tokens) },
-    )
-}
-~~~
-
-| Package | What it holds |
-| --- | --- |
-| root | `H2g2Theme`; `H2g2Chip`, `H2g2Heading`, `statusColor`, `readableOn`, `contrastRatio`, `Modifier.minTouch`, `screenInsets`, `maxContentWidth` (`Primitives.kt`); `H2g2Splash`, the hand that counts four, then two, then approves. |
-| `menu` | `H2g2PillMenu`: the breadcrumb pill stack. Right-anchored pills, the eleven-way entrance lottery, the host drop, the child cascade, the shingled trail, slot-reel scrolling. `PillMenuPlacement` mirrors it into any corner: `BottomRight` (the house stack), `TopRight` (top of the screen, growing downward), `BottomLeft`, `TopLeft`. |
-| `files` | `H2g2FilesScreen`: folder tiles that morph open into cards while their siblings collapse to rods, nested levels, selection, in-place preview. `H2g2FilesReveal` (the perimeter-run open and close), `H2g2FolderPicker`, `H2g2PathPickerScreen`, `H2g2StorageScreen`, `H2g2MarkdownPreview`. |
-| `guide` | `H2g2GuideReaderScreen`, `H2g2CommandGuideScreen`, `H2g2GuideLinkedText` (prose whose commands are tappable). Takes any `GuideContent`; `HitchhikersGuideToTermux` is the default. |
-| `terminal` | `H2g2TerminalScreen`: session tabs, shell status line, output cards, the pill stack, the composer and RUN. `H2g2FluidTerminalWorkspace`, `H2g2ShellStatusLine`, `H2g2LiveStatusStrip`, `H2g2ComposerKeys`, and the completion, alias and chaining models. |
-| `tui` | `H2g2FullScreenTerminalScreen` (the Azrienoch Mono grid, key rows, gestures) and `H2g2AdaptiveTuiScreen` (menus, tabs, lists, tables and prompts projected from a running terminal app, with the RAW fallback). |
-| `components` | `H2g2ConfirmDialog`, `H2g2JobProgressBar`, `H2g2TypesetOutput` with `H2g2KeyValueTable`, `H2g2WideTableRecords`, `H2g2AsciiArtCanvas`; `StyledSpan`, `BackStepState`. |
-| `screens` | `H2g2EditorScreen`, `H2g2AzpStoreScreen`, `H2g2AiChatScreen`. |
-| `settings` | `H2g2SettingsScreen`, `H2g2AiSettingsScreen`, `H2g2McpServerScreen`, `H2g2EnvironmentScreen`, `H2g2HistoryScreen`, `H2g2IsolationAuditScreen`. |
-
-No Material dependency: the screens' text goes through an internal wrapper over foundation.
-
-The documents all of this was built from are in [`docs/`](docs/README.md).
-
-### Motion: containment and the pill choreography
+## Motion: containment and the pill choreography
 
 HG2Gui's motion, lifted here so every app that speaks HG2Gui moves the same way.
 
@@ -131,7 +130,7 @@ H2g2Nest(label = "Hive", hue = hue) {
 }
 ~~~
 
-### The workflow/terrarium subsystem
+## The workflow/terrarium subsystem
 
 The same package also holds a considerably larger body of work than the style tokens above: a
 renderer for a process graph, and an artificial-life reading of that same graph. None of it is
@@ -222,21 +221,33 @@ click to prove the act is actually engaged -- the inert-template defect is invis
 that only inspects values, since a template missing `.clickable { engage() }` still renders
 perfectly.
 
-## Using it
+## As an azphalt composable library
 
-```kotlin
-repositories {
-    maven("https://jitpack.io")
+Per [azphalt's `spec/composable.md`](https://github.com/HereLiesAz/azphalt/blob/main/spec/composable.md),
+a `kind: "composable"` `.azp` package is a **pure header**: it names this artifact's Gradle
+coordinates (`library.group` / `library.artifact`) and selects a `templateId`, `hue`,
+`surface`, `scale`, and `act` from it. It carries no code of its own. This repository *is* the
+artifact a composable package's `library` block points at -- the `.azp` package itself is
+authored and published separately, wherever its author chooses; this repo does not need to hold
+one.
+
+Example composable manifest referencing this library:
+
+~~~jsonc
+{
+  "azphalt": "0.1",
+  "id": "com.hereliesaz.azphalt.example",
+  "name": "Example",
+  "version": "1.0.0",
+  "kind": "composable",
+  "license": "Apache-2.0",
+  "compat": ">=0.1",
+  "composable": {
+    "library": { "group": "com.hereliesaz.conveyance", "artifact": "conveyance-h2g2", "version": "0.1.0" },
+    "elements": [
+      { "id": "confirm-record", "templateId": "h2g2.tile.record", "hue": "confirm-record", "surface": "recordTile", "scale": "lead", "act": "create", "jobs": ["confirms a destructive action"] }
+    ]
+  },
+  "files": {}
 }
-dependencies {
-    implementation("com.github.HereLiesAz:conveyance-h2g2:0.5.1")
-}
-```
-
-Resolved via [JitPack](https://jitpack.io) directly from this repository -- `conveyance-core` and
-`conveyance-compose` both apply `maven-publish`, which is all JitPack needs, so there is no
-separate publish step to configure.
-
-This artifact pins its own dependency on Conveyance to the matching `0.5.0` tag, not to
-`main-SNAPSHOT`: a floating snapshot makes KMP metadata non-reproducible and can resolve stale
-per-target publications through JitPack. Consumers can take `main-SNAPSHOT` instead to track `main`.
+~~~

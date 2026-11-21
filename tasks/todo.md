@@ -78,3 +78,11 @@ Deliberate departures from HG2Gui:
 
 Not ported: the command, authority and package-lifecycle menu trees (HG2Gui's data, not its
 design).
+
+## Documentation pass (after the merge of #28)
+
+- [x] README restructured: install, quick start, surfaces table, tokens, status, azphalt manifest
+- [x] `docs/USAGE.md`: how to call each surface, checked against the source signatures
+- [x] `CHANGELOG.md`: additions, changes under existing callers, departures from HG2Gui
+- [x] `docs/README.md` indexes the guides ahead of the specifications
+- [x] KDoc: stale ground, back-handler and document-path references corrected

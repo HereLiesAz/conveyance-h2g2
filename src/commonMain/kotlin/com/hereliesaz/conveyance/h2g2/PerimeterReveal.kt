@@ -43,7 +43,7 @@ import kotlinx.coroutines.launch
  * wipe starts filling the frame it has enclosed with the pill's own colour, revealing whatever it
  * opened underneath as the wipe descends.
  *
- * Before any of that, per "THE SIX BEATS" in docs/HG2Gui Run Transition.html, beats 1-3 (stretch,
+ * Before any of that, per "THE SIX BEATS" in docs/design/HG2Gui Run Transition.html, beats 1-3 (stretch,
  * break free, fall) play out via the shared [BreakFreeState] in PillBreakFree.kt - see that file
  * for the choreography itself. Per the reference spec's own bars, the perimeter legs below stay
  * anchored to the pill's original position throughout; the break-free pill is a flourish playing

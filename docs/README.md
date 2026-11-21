@@ -1,3 +1,11 @@
+# Documentation
+
+- [`USAGE.md`](USAGE.md): how to call each surface from a host app.
+- [`../CHANGELOG.md`](../CHANGELOG.md): what changed, including under existing callers.
+- [`../README.md`](../README.md): what the library is and how to depend on it.
+
+Everything below is specification, not instruction.
+
 # The documents HG2Gui was built on
 
 Copied from [HereLiesAz/HG2Gui](https://github.com/HereLiesAz/HG2Gui) at `0d8edf6`, unedited. They are

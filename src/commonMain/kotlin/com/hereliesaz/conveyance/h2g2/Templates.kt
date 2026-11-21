@@ -36,7 +36,7 @@ import com.hereliesaz.conveyance.h2g2.H2g2.contrastingText
  * isn't repeated here. [subtitle] is optional -- most templates render [label] alone; the ones
  * that use a second line say so. [detailLines] is likewise optional -- only
  * `h2g2.tile.record.detail` uses it. [endCapText], when present, renders trailing the label in
- * `H2g2.caps`' darker mate and the `endCap` type step -- `docs/DESIGN.md` §2's own "label and
+ * `H2g2.caps`' darker mate and the `endCap` type step -- `docs/design/DESIGN.md` §2's own "label and
  * end-cap sit together at the right end," with the "darker mate on the end-cap" coloring from
  * §7 ("Unchanged from Azphalt") layered on top, on the two templates whose names say `.capped`.
  */
@@ -138,7 +138,7 @@ fun RecordTile(request: ComposableRequest) {
  * A [H2g2Surface.recordTile] card with a nested [H2g2Surface.well] holding
  * [ComposableRequest.detailLines] -- the ink-background raw-output panel HG2Gui itself nests
  * inside a record tile for command results, network status, a context switch's confirmation
- * (`docs/HG2Gui Surfaces.dc.html`). Falls back to a labeled [H2g2Surface.recordTile] with no well
+ * (HG2Gui's `Surfaces` sheet). Falls back to a labeled [H2g2Surface.recordTile] with no well
  * when [ComposableRequest.detailLines] is null or empty.
  */
 @Composable
@@ -242,7 +242,7 @@ fun ActionPill(request: ComposableRequest) {
 
 /**
  * A small capsule chip in [H2g2.caps]' darker mate of the surrounding hue, set in the `endCap`
- * type step -- the trailing element `docs/DESIGN.md` describes riding at the right end alongside
+ * type step -- the trailing element `docs/design/DESIGN.md` describes riding at the right end alongside
  * a label, never on its own.
  */
 @Composable
@@ -260,7 +260,7 @@ private fun EndCap(text: String, hueIndex: Int) {
 
 /**
  * [ActionPill] with [ComposableRequest.endCapText] riding the right end in [H2g2.caps]' darker
- * mate -- `docs/DESIGN.md` §2's "label and end-cap sit together at the right end, in that order,"
+ * mate -- `docs/design/DESIGN.md` §2's "label and end-cap sit together at the right end, in that order,"
  * read for a natural-width pill rather than the pill menu's own anchored/overhung ones. Falls
  * back to plain [ActionPill] layout when [ComposableRequest.endCapText] is null.
  */

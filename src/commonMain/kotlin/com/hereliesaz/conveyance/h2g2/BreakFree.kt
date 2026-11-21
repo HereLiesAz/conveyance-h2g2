@@ -12,7 +12,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /*
- * Beats 1-3 of the run transition ("THE SIX BEATS" in docs/HG2Gui Run Transition.html), as ONE
+ * Beats 1-3 of the run transition ("THE SIX BEATS" in docs/design/HG2Gui Run Transition.html), as ONE
  * continuous motion rather than four chained animations, shared by PillPerimeterReveal.kt and
  * PillWrapReveal.kt so the choreography is authored once instead of drifting between the two
  * tiers. The pill strains against the stack and only gets longer; it releases from its left
@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
  */
 
 // STRETCH_MS/JIGGLE_MS (and the jiggle amplitude below) run longer/smaller than the reference
-// spec's own web demo (docs/HG2Gui Run Transition.dc.html: STRETCH_MS=220, JIGGLE_MS=90, jiggle
+// spec's own web demo (docs/design/HG2Gui Run Transition.dc.html: STRETCH_MS=220, JIGGLE_MS=90, jiggle
 // peaks up to 7deg) - unlike EDGE_MARGIN_PX/STRETCH/SHORT/SNAP_MS below, which do match that
 // reference exactly. No record of why these three were re-tuned instead of ported as-is; noted
 // here so the divergence reads as known rather than as an uncaught drift.
