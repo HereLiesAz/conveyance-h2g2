@@ -2,6 +2,16 @@
 
 package com.hereliesaz.conveyance.h2g2.terminal
 
+import com.hereliesaz.conveyance.h2g2.components.OutputKind
+import com.hereliesaz.conveyance.h2g2.menu.PillMenuPlacement
+import com.hereliesaz.conveyance.h2g2.components.classifyOutput
+import com.hereliesaz.conveyance.h2g2.components.H2g2AsciiArtCanvas
+import com.hereliesaz.conveyance.h2g2.components.H2g2KeyValueTable
+import com.hereliesaz.conveyance.h2g2.components.H2g2WideTableRecords
+import com.hereliesaz.conveyance.h2g2.components.StyledSpan
+import com.hereliesaz.conveyance.h2g2.components.buildStyledLine
+import com.hereliesaz.conveyance.h2g2.components.inkColor
+import com.hereliesaz.conveyance.h2g2.components.progressFillOn
 import com.hereliesaz.conveyance.h2g2.H2g2
 import com.hereliesaz.conveyance.h2g2.H2g2Dimens
 import com.hereliesaz.conveyance.h2g2.H2g2Chip
@@ -230,39 +240,24 @@ private suspend fun LazyListState.scrollToTail(lastIndex: Int) {
     }
 }
 
-/**
- * How one output card is drawn in its "reading" form. [H2g2TerminalScreen] asks its `classifyOutput`
- * callback for one of these per card: [PLAIN] is the line-by-line wipe the screen draws itself,
- * [BINARY] is replaced by a one-line notice, and [TABLE] / [WIDE_TABLE] / [ART] are handed to the
- * `typesetOutput` slot. The names match the library's typeset-output classifier one for one.
- */
-enum class TerminalOutputKind {
-    /** Ordinary text: drawn as wiped-in, tappable lines. */
-    PLAIN,
+/** HG2Gui's own classifier ([classifyOutput] in `components`), named apart from the parameter. */
+private fun classifyTerminalOutput(output: String): OutputKind = classifyOutput(output)
 
-    /** `key: value` lines, drawn as a two-column table. */
-    TABLE,
-
-    /** A columnar table too wide for the card, reflowed into records. */
-    WIDE_TABLE,
-
-    /** ASCII art, drawn as a picture. */
-    ART,
-
-    /** Not text at all; the card says so instead of printing it. */
-    BINARY
-}
-
-/** The default `typesetOutput` slot: the text as it is, in the output face. */
+/** The default `typesetOutput` slot: the picture, the table or the reflowed records. */
 @Composable
-private fun PlainTypesetOutput(text: String, ink: Color) {
-    Text(text, style = outputTextStyle().copy(color = ink))
+private fun DefaultTypesetOutput(kind: OutputKind, text: String, ink: Color) {
+    when (kind) {
+        OutputKind.ART -> H2g2AsciiArtCanvas(text, ink)
+        OutputKind.TABLE -> H2g2KeyValueTable(text, ink)
+        OutputKind.WIDE_TABLE -> H2g2WideTableRecords(text, ink)
+        OutputKind.BINARY, OutputKind.PLAIN -> Unit
+    }
 }
 
 /** The two output slots of [H2g2TerminalScreen], carried down to each card together. */
 private class OutputSlots(
-    val classify: (String) -> TerminalOutputKind,
-    val typeset: @Composable (TerminalOutputKind, String, Color) -> Unit
+    val classify: (String) -> OutputKind,
+    val typeset: @Composable (OutputKind, String, Color) -> Unit
 )
 
 /**
@@ -284,7 +279,7 @@ private class OutputSlots(
  *   never shadows it; the default says no, so every alias expands.
  * - [shellProbe]: answers the status line's read-only questions (see [ShellStatusProjector]).
  * - [classifyOutput] / [typesetOutput]: how an output card is drawn in its reading form (see
- *   [TerminalOutputKind]); by default everything is plain text.
+ *   [OutputKind]); by default everything is plain text.
  * - [onFilesButtonPositioned] / [onCrumbPositioned]: root-coordinate rects of the FILES capsule and
  *   of each trail crumb, for a host that starts a perimeter reveal (`H2g2PerimeterReveal`) from them.
  * - [onWizard]: a pill with a `wizardId` was picked (see [SshFlow], [WorkflowFlow]).
@@ -321,11 +316,13 @@ fun H2g2TerminalScreen(
     complete: suspend (CompletionRequest) -> List<CompletionCandidate> = { emptyList() },
     /** True when an installed command has this name, so an alias of the same name is not expanded. */
     isRealCommand: (name: String) -> Boolean = { false },
-    /** Decides how a card's output is drawn; the default treats everything as plain text. */
-    classifyOutput: (output: String) -> TerminalOutputKind = { TerminalOutputKind.PLAIN },
-    /** Draws a [TerminalOutputKind.TABLE], [TerminalOutputKind.WIDE_TABLE] or [TerminalOutputKind.ART] output. */
-    typesetOutput: @Composable (kind: TerminalOutputKind, text: String, ink: Color) -> Unit =
-        { _, text, ink -> PlainTypesetOutput(text, ink) },
+    /** Decides how a card's output is drawn; the default is the library's own [classifyTerminalOutput]. */
+    classifyOutput: (output: String) -> OutputKind = ::classifyTerminalOutput,
+    /** Draws a [OutputKind.TABLE], [OutputKind.WIDE_TABLE] or [OutputKind.ART] output. */
+    typesetOutput: @Composable (kind: OutputKind, text: String, ink: Color) -> Unit =
+        { kind, text, ink -> DefaultTypesetOutput(kind, text, ink) },
+    /** Which corner the pill stack grows from; see [PillMenuPlacement]. */
+    pillPlacement: PillMenuPlacement = PillMenuPlacement.BottomRight,
     modifier: Modifier = Modifier,
     onRun: suspend (
         sessionId: String,
@@ -769,6 +766,7 @@ fun H2g2TerminalScreen(
                     H2g2PillMenu(
                         roots = effectiveTree,
                         modifier = workspaceModifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        placement = pillPlacement,
                         onRun = { picked, isTerminal ->
                             val completion = completionCandidateFromPick(picked, active)
                             val chainOperator = chainOperatorFromPick(picked)
@@ -895,17 +893,6 @@ fun H2g2TerminalScreen(
             )
         }
     }
-}
-
-/**
- * The fill colour for a progress bar drawn on [page]: the first of Ink, Yellow and White that reads
- * at the non-text threshold (3:1) against it, so the bar is Ink on the light grounds and Yellow on
- * the dark ones instead of the old always-Yellow fill (1.11:1 on Mustard).
- */
-internal fun progressFillOn(page: Color): Color {
-    val candidates = listOf(H2g2.ink, H2g2.yellow, H2g2.white)
-    return candidates.firstOrNull { contrastRatio(it, page) >= H2g2Contrast.NON_TEXT }
-        ?: candidates.maxByOrNull { contrastRatio(it, page) }!!
 }
 
 /**
@@ -1062,7 +1049,7 @@ private fun BufferEntry(
 @Composable
 private fun EntryActionRow(
     entry: TerminalHistoryEntry,
-    kind: TerminalOutputKind,
+    kind: OutputKind,
     showRaw: Boolean,
     isExpanded: Boolean,
     actions: EntryActions
@@ -1089,7 +1076,7 @@ private fun EntryActionRow(
 @Composable
 @Suppress("LongParameterList")
 private fun ClassifiedOutput(
-    kind: TerminalOutputKind,
+    kind: OutputKind,
     entry: TerminalHistoryEntry,
     onPage: Color,
     surface: Color,
@@ -1099,25 +1086,25 @@ private fun ClassifiedOutput(
     onCopyLine: (String) -> Unit
 ) {
     when {
-        kind == TerminalOutputKind.BINARY && !showRaw -> Text(
+        kind == OutputKind.BINARY && !showRaw -> Text(
             "Binary output - not displayed as text.",
             style = entryTextStyle().copy(color = onPage.copy(alpha = .72f), fontStyle = FontStyle.Italic)
         )
-        kind == TerminalOutputKind.ART && !showRaw -> slots.typeset(kind, entry.output, onPage.copy(alpha = .8f))
-        kind == TerminalOutputKind.TABLE && !showRaw -> slots.typeset(kind, entry.output, onPage)
-        kind == TerminalOutputKind.WIDE_TABLE && !showRaw -> slots.typeset(kind, entry.output, onPage)
+        kind == OutputKind.ART && !showRaw -> slots.typeset(kind, entry.output, onPage.copy(alpha = .8f))
+        kind == OutputKind.TABLE && !showRaw -> slots.typeset(kind, entry.output, onPage)
+        kind == OutputKind.WIDE_TABLE && !showRaw -> slots.typeset(kind, entry.output, onPage)
         else -> OutputLines(entry, surface, ledger, onCopyLine)
     }
 }
 
 @Composable
-private fun ClassificationTogglePill(kind: TerminalOutputKind, showRaw: Boolean, onToggle: () -> Unit) {
+private fun ClassificationTogglePill(kind: OutputKind, showRaw: Boolean, onToggle: () -> Unit) {
     val label = when (kind) {
-        TerminalOutputKind.BINARY -> "BINARY"
-        TerminalOutputKind.ART -> "ART"
-        TerminalOutputKind.TABLE -> "READING"
-        TerminalOutputKind.WIDE_TABLE -> "REFLOW"
-        TerminalOutputKind.PLAIN -> null
+        OutputKind.BINARY -> "BINARY"
+        OutputKind.ART -> "ART"
+        OutputKind.TABLE -> "READING"
+        OutputKind.WIDE_TABLE -> "REFLOW"
+        OutputKind.PLAIN -> null
     } ?: return
     H2g2Chip(
         label = if (showRaw) label else "PLAIN TEXT",
@@ -1158,28 +1145,6 @@ private const val OUTPUT_WIPE_MS = 240
 private const val OUTPUT_WIPE_STAGGER_MS = 35L
 private const val OUTPUT_WIPE_STAGGER_STEPS = 8
 private const val OUTPUT_WIPE_STAGGER_CAP = 24
-private const val ANSI_PLAIN_ALPHA = .8f
-
-internal fun StyledSpan.inkColor(onPage: Color, background: Color): Color =
-    hue?.let { H2g2.hues[it].readableOn(background) } ?: onPage.copy(alpha = ANSI_PLAIN_ALPHA)
-
-/**
- * One output line as styled text. ANSI hues are pill colours, tuned to sit behind labels, not to be
- * text on the ground: each is pushed to a readable contrast against [background] (the ground's
- * page, or the painted surface of the card the line sits on).
- */
-internal fun buildStyledLine(
-    spans: List<StyledSpan>,
-    onPage: Color,
-    background: Color
-): AnnotatedString = buildAnnotatedString {
-    spans.forEach { span ->
-        withStyle(SpanStyle(color = span.inkColor(onPage, background), fontWeight = if (span.bold) FontWeight.Bold else null)) {
-            append(span.text)
-        }
-    }
-}
-
 @Composable
 private fun outputTextStyle(): TextStyle = currentH2g2Type().body.copy(
     fontWeight = FontWeight.Normal,

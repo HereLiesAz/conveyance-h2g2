@@ -1,5 +1,6 @@
 package com.hereliesaz.conveyance.h2g2.terminal
 
+import com.hereliesaz.conveyance.h2g2.components.OutputKind
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
@@ -145,7 +146,7 @@ class TerminalScreenUiTest {
                     onOpenSettings = {},
                     onOpenGuide = {},
                     onOpenFiles = {},
-                    classifyOutput = { TerminalOutputKind.TABLE },
+                    classifyOutput = { OutputKind.TABLE },
                     typesetOutput = { kind, text, _ -> Text("slot ${kind.name}: $text") },
                     onRun = { _, _, _, _, _, _, _ -> }
                 )

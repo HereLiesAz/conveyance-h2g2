@@ -1,5 +1,7 @@
 package com.hereliesaz.conveyance.h2g2.files
 
+import com.hereliesaz.conveyance.h2g2.components.StyledSpan
+import com.hereliesaz.conveyance.h2g2.components.buildStyledLine
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density

@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hereliesaz.conveyance.h2g2.menu.MenuNode
+import com.hereliesaz.conveyance.h2g2.menu.PillMenuPlacement
 import com.hereliesaz.conveyance.h2g2.menu.H2g2PillMenu
 
 /*
@@ -64,6 +65,8 @@ fun H2g2CommandGuideScreen(
      */
     onCommandAppended: ((command: String) -> Unit)? = null,
     content: GuideContent = HitchhikersGuideToTermux,
+    /** Which corner the pill stack grows from; see [PillMenuPlacement]. */
+    pillPlacement: PillMenuPlacement = PillMenuPlacement.BottomRight,
     showProductionNotes: Boolean = false
 ) {
     var readingGuide by remember { mutableStateOf(false) }
@@ -122,6 +125,7 @@ fun H2g2CommandGuideScreen(
         H2g2PillMenu(
             roots = tree,
             modifier = Modifier.weight(1f).padding(horizontal = 20.dp, vertical = 12.dp),
+            placement = pillPlacement,
             onRun = { picked, isTerminal -> onCommandSelected(picked, isTerminal) }
         )
     }

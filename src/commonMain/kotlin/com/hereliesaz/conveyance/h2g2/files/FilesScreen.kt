@@ -2,6 +2,7 @@
 
 package com.hereliesaz.conveyance.h2g2.files
 
+import com.hereliesaz.conveyance.h2g2.components.buildStyledLine
 import com.hereliesaz.conveyance.h2g2.H2g2
 import com.hereliesaz.conveyance.h2g2.H2g2Motion
 import com.hereliesaz.conveyance.h2g2.H2g2Chip

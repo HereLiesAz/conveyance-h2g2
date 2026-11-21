@@ -1,5 +1,6 @@
 package com.hereliesaz.conveyance.h2g2.terminal
 
+import com.hereliesaz.conveyance.h2g2.components.progressFillOn
 import com.hereliesaz.conveyance.h2g2.H2g2
 import com.hereliesaz.conveyance.h2g2.H2g2Contrast
 import com.hereliesaz.conveyance.h2g2.components.ConfirmPromptKind

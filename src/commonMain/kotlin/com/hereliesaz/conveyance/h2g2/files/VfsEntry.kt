@@ -1,5 +1,7 @@
 package com.hereliesaz.conveyance.h2g2.files
 
+import com.hereliesaz.conveyance.h2g2.components.StyledSpan
+
 
 /**
  * One node in the sandboxed filesystem, identified by an absolute path from the vfs root
@@ -102,12 +104,6 @@ fun vfsChildPath(parent: String, name: String): String {
     return if (base.isEmpty()) "/$name" else "$base/$name"
 }
 
-/**
- * One run of a highlighted preview line: [text] in pill hue [hue] (an index into `H2g2.hues`; null
- * for plain text) and optionally [bold]. HG2Gui's own terminal output model, which a host's syntax
- * highlighter fills in for [FilePreview.styled].
- */
-data class StyledSpan(val text: String, val hue: Int? = null, val bold: Boolean = false)
 
 /** F3: a tapped file's own in-place preview - [text] is null for anything not readable as text
  *  (a binary, or a read that failed), in which case the preview surface says what the file is

@@ -1,16 +1,12 @@
 package com.hereliesaz.conveyance.h2g2.terminal
 
+import com.hereliesaz.conveyance.h2g2.components.StyledSpan
+
 // D1 (HG2Gui Termux Coverage.dc.html): one contiguous run of same-styled text within one
 // terminal line, as parsed off the real shell's own ANSI/SGR escapes - not stripped, mapped.
 // [hue] indexes into H2g2.hues/caps (ui/menu/PillMenu.kt) when the source used a color this
 // maps to a named hue; null means "no mapped color" (an unrecognized 256-color/truecolor cell,
 // or the terminal's own default foreground) and renders in the surrounding text's normal ink.
-/**
- * One run of same-styled text inside one terminal line. [hue] indexes `H2g2.hues` (null renders in
- * the surrounding ink); a host that parses ANSI/SGR escapes hands rows of these to
- * [TerminalHistoryEntry.styledOutput].
- */
-data class StyledSpan(val text: String, val hue: Int? = null, val bold: Boolean = false)
 
 // Monotonic, session-independent - only needs to be unique among entries actually alive in some
 // buffer at once, which a plain incrementing counter guarantees regardless of how many terminal
