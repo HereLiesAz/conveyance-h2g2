@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 
 /*
  * HG2Gui's screens are written against Material 3's `Text`, and that is the only thing they take
@@ -32,8 +33,14 @@ import androidx.compose.ui.unit.TextUnit
  */
 val LocalH2g2ContentColor = compositionLocalOf { H2g2.ink }
 
-/** The text style an unstyled [Text] starts from. */
-val LocalH2g2TextStyle = compositionLocalOf { TextStyle.Default }
+/**
+ * The text style an unstyled [Text] starts from. HG2Gui's unstyled text was Material 3's
+ * `bodyLarge` in Azrienoch, so these are that style's metrics; the family is filled in when the
+ * text is drawn (see [resolved]), since loading the bundled typeface needs a composition.
+ */
+val LocalH2g2TextStyle = compositionLocalOf {
+    TextStyle(fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.5.sp)
+}
 
 @Suppress("LongParameterList")
 @Composable
@@ -129,7 +136,8 @@ private fun TextStyle.resolved(
         fontWeight = fontWeight,
         textAlign = textAlign ?: TextAlign.Unspecified,
         lineHeight = lineHeight,
-        fontFamily = fontFamily,
+        // Text that names no family is Azrienoch, as every HG2Gui screen was under its theme.
+        fontFamily = fontFamily ?: this.fontFamily ?: currentH2g2Type().body.fontFamily,
         textDecoration = textDecoration,
         fontStyle = fontStyle,
         letterSpacing = letterSpacing,
