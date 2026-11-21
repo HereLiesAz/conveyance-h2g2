@@ -88,7 +88,7 @@ publishing {
         pom {
             name.set("Conveyance h2g2")
             description.set(
-                "The h2g2 style system -- hues, ground-rotation surfaces, workflow routes, and the 8-step Jost type scale -- ported from HG2Gui.",
+                "The h2g2 design system -- hues, grounds, the Azrienoch type scale, motion, and HG2Gui's screens and components as composables.",
             )
             url.set("https://github.com/HereLiesAz/conveyance-h2g2")
             licenses {

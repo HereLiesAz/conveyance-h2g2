@@ -1,6 +1,6 @@
 # conveyance-h2g2
 
-A composable-set library for [Conveyance](https://github.com/HereLiesAz/Conveyance): The h2g2 style system -- hues, ground-rotation surfaces, and the 8-step Jost type scale -- ported from HG2Gui.
+A composable-set library for [Conveyance](https://github.com/HereLiesAz/Conveyance): the h2g2 design system -- hues, grounds, the Azrienoch type scale, motion, and every screen and component of HG2Gui as a callable composable.
 
 ## What this is
 
@@ -40,14 +40,17 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
 - **`H2g2`** (`H2g2.kt`) -- the 14-entry hue/cap palette and `hueOf(id)`, a deterministic hash
   from any identifier to a hue. This is [`Job.Identify`](https://github.com/HereLiesAz/Conveyance)
   territory, not `Channel.Hue` -- it tells elements apart, it doesn't rank them.
-- **`Ground`/`GroundState`** (`Grounds.kt`) -- the six weighted background themes and their
-  fold-crease gradient. Adapted from a process-wide singleton (h2g2's own app-level pattern) to a
+- **`Ground`/`GroundState`** (`Grounds.kt`) -- the six weighted background themes. `pageBrush()`
+  is the flat page HG2Gui paints; `foldBrush()` is the printed spread with its seam at the style
+  guide's 100 degrees. Adapted from a process-wide singleton (h2g2's own app-level pattern) to a
   `GroundState` a host instantiates and scopes itself, since a library shouldn't impose global
-  mutable state on its consumer.
-- **`H2g2Type`/`h2g2Type()`** (`Type.kt`) -- the eight-step type scale (`hero` through `micro`).
-  Defaults to `FontFamily.Default`; the original uses Jost specifically, but bundling that
-  typeface's font files is a per-host asset decision this library doesn't make for you -- pass
-  your own Jost `FontFamily` to `h2g2Type()` for the exact original look.
+  mutable state on its consumer; components read the active one from `LocalH2g2Ground`.
+- **`H2g2Type`** (`Type.kt`) -- the twelve-step type scale (`hero` through `micro`, plus the
+  working sizes `heading`, `pill`, `pillCap`, `chip`), nothing below 11sp. Set in **Azrienoch**,
+  HG2Gui's typeface, which this library bundles (six cuts, SIL OFL 1.1, licence in
+  `third_party/azrienoch/`): `azrienochFontFamily()`, `azrienochMonoFontFamily()`, and
+  `currentH2g2Type()`, which every composable here reads. `h2g2Type(family)` builds the same scale
+  on any other family.
 - **`H2g2Surface`** (`Surfaces.kt`) -- **four** shapes: `recordTile`/`note`, from the source-code
   `AzphaltSurface` object, plus `well` (18dp) -- a shape that object doesn't name, but the actual
   design mockups (`docs/HG2Gui Surfaces.dc.html`) use consistently: an ink-background container
@@ -77,6 +80,39 @@ Ported from HG2Gui's own Azphalt style system (h2g2's origin), values unchanged 
   `request.surfaceShape(<its own default shape>)`, so a manifest element's `surface` string really
   does select the shape (`H2g2Surface.byName`); a `surface` this vocabulary doesn't have leaves
   that template on the shape its name implies rather than collapsing everything to `capsule`.
+
+### The surfaces: HG2Gui's UI, callable
+
+Every HG2Gui screen and component, as a composable with its animations built in. App logic never
+came along: a shell, a filesystem, an AI client or a preference store is a parameter or a callback.
+Wrap a screen in `H2g2Theme` for the rolled ground, the content colour, the UI scale and (on
+Android) the system animator scale and window tint; every piece also works outside it, on Mustard.
+
+~~~kotlin
+H2g2Theme {
+    H2g2PillMenu(
+        roots = listOf(MenuNode("pkg", "Package management", children = listOf(MenuNode("install", "install")))),
+        placement = PillMenuPlacement.TopRight, // top of the screen; the stack falls downward
+        onRun = { tokens, complete -> if (complete) run(tokens) },
+    )
+}
+~~~
+
+| Package | What it holds |
+| --- | --- |
+| root | `H2g2Theme`; `H2g2Chip`, `H2g2Heading`, `statusColor`, `readableOn`, `contrastRatio`, `Modifier.minTouch`, `screenInsets`, `maxContentWidth` (`Primitives.kt`); `H2g2Splash`, the hand that counts four, then two, then approves. |
+| `menu` | `H2g2PillMenu`: the breadcrumb pill stack. Right-anchored pills, the eleven-way entrance lottery, the host drop, the child cascade, the shingled trail, slot-reel scrolling. `PillMenuPlacement` mirrors it into any corner: `BottomRight` (the house stack), `TopRight` (top of the screen, growing downward), `BottomLeft`, `TopLeft`. |
+| `files` | `H2g2FilesScreen`: folder tiles that morph open into cards while their siblings collapse to rods, nested levels, selection, in-place preview. `H2g2FilesReveal` (the perimeter-run open and close), `H2g2FolderPicker`, `H2g2PathPickerScreen`, `H2g2StorageScreen`, `H2g2MarkdownPreview`. |
+| `guide` | `H2g2GuideReaderScreen`, `H2g2CommandGuideScreen`, `H2g2GuideLinkedText` (prose whose commands are tappable). Takes any `GuideContent`; `HitchhikersGuideToTermux` is the default. |
+| `terminal` | `H2g2TerminalScreen`: session tabs, shell status line, output cards, the pill stack, the composer and RUN. `H2g2FluidTerminalWorkspace`, `H2g2ShellStatusLine`, `H2g2LiveStatusStrip`, `H2g2ComposerKeys`, and the completion, alias and chaining models. |
+| `tui` | `H2g2FullScreenTerminalScreen` (the Azrienoch Mono grid, key rows, gestures) and `H2g2AdaptiveTuiScreen` (menus, tabs, lists, tables and prompts projected from a running terminal app, with the RAW fallback). |
+| `components` | `H2g2ConfirmDialog`, `H2g2JobProgressBar`, `H2g2TypesetOutput` with `H2g2KeyValueTable`, `H2g2WideTableRecords`, `H2g2AsciiArtCanvas`; `StyledSpan`, `BackStepState`. |
+| `screens` | `H2g2EditorScreen`, `H2g2AzpStoreScreen`, `H2g2AiChatScreen`. |
+| `settings` | `H2g2SettingsScreen`, `H2g2AiSettingsScreen`, `H2g2McpServerScreen`, `H2g2EnvironmentScreen`, `H2g2HistoryScreen`, `H2g2IsolationAuditScreen`. |
+
+No Material dependency: the screens' text goes through an internal wrapper over foundation.
+
+The documents all of this was built from are in [`docs/`](docs/README.md).
 
 ### Motion: containment and the pill choreography
 
@@ -156,15 +192,17 @@ renderer for a process graph, and an artificial-life reading of that same graph.
 
 ## Status
 
-Covers h2g2's full surface vocabulary (all four shapes have a template) and, per shape, more than
-one act/layout pairing where a real pattern from the source app justified it: a record tile can
-carry a nested well, an end-cap, or neither. What's still not here: Jost as the actual default
-rather than an opt-in -- bundling that typeface's font files remains a per-host asset decision
-this library doesn't make for you -- and a `.capped` variant of `h2g2.tile.note`, which the
-source app's own vocabulary doesn't obviously call for (a note is small and self-contained; an
-end-cap is a pill-menu/record-tile pattern for a "further detail rides the right end" reading, and
-forcing it onto every shape regardless of whether the source app actually uses it there is exactly
-the kind of unreconciled addition this port has tried to avoid).
+Tracks HG2Gui at `0d8edf6`: the tokens, the typeface, every screen and shared component, and the
+splash its design files specify. Not ported, because they are HG2Gui's data rather than its design:
+the command, authority and package-lifecycle menu trees, and everything that does work (shell,
+PTY, VFS, MCP, AI clients, preferences). A host supplies those.
+
+Verified by `./gradlew desktopTest` (unit tests, compose UI tests that tap through each screen, and
+`GalleryRender`/`ScreensGallery`, which draw the surfaces off-screen to `build/gallery/` at chosen
+moments of their animations). Android, JS and Wasm are compiled, not run.
+
+The templates cover h2g2's full surface vocabulary (all four shapes have a template) and, per shape,
+more than one act/layout pairing where a real pattern from the source app justified it.
 
 An adversarial audit found and this repo has since fixed two real defects: every template's
 `Offer` was missing `Modifier.tell(owesTell, weight).clickable { engage() }` -- every element
