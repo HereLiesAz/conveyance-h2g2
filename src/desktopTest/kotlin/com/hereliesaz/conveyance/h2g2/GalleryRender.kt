@@ -16,6 +16,7 @@ import com.hereliesaz.conveyance.h2g2.components.ConfirmTone
 import com.hereliesaz.conveyance.h2g2.components.H2g2ConfirmDialog
 import com.hereliesaz.conveyance.h2g2.menu.H2g2PillMenu
 import com.hereliesaz.conveyance.h2g2.menu.MenuNode
+import com.hereliesaz.conveyance.h2g2.menu.PillMenuPlacement
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -90,6 +91,15 @@ class GalleryRender {
     @Test
     fun pillMenu() = render("pillmenu", 0, 120, 400, 1200) {
         H2g2Theme(mustard) { Box(Modifier.fillMaxSize()) { H2g2PillMenu(roots = tree, modifier = Modifier.fillMaxSize()) } }
+    }
+
+    @Test
+    fun pillMenuPlacements() {
+        for (placement in PillMenuPlacement.entries) {
+            render("pillmenu_${placement.name}", 120, 1200, height = 420) {
+                H2g2Theme(mustard) { H2g2PillMenu(roots = tree, modifier = Modifier.fillMaxSize(), placement = placement) }
+            }
+        }
     }
 
     @Test

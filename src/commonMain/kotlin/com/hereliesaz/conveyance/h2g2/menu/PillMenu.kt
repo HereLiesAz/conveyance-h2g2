@@ -335,10 +335,64 @@ private sealed interface Phase {
     data class Open(val hostId: String) : Phase
 }
 
+/**
+ * Which corner of its bounds an [H2g2PillMenu] grows from. The house stack is [BottomRight]: pills
+ * anchored by their right ends, bleeding off the left edge, fanning upward from the bottom. The
+ * others are that same stack mirrored, so every entrance, the host drop, the child cascade, the
+ * trail and the slot-reel scroll play exactly as designed, in the mirrored direction:
+ *
+ * - [TopRight] sits at the top of a screen and its stacks fall downward (a host drops *up* to the
+ *   top row; its children cascade down from it).
+ * - [BottomLeft] / [TopLeft] anchor pills by their left ends and bleed off the right edge, with the
+ *   label and end-cap at the left.
+ *
+ * Labels are always drawn upright and readable; only position and motion are mirrored.
+ */
+enum class PillMenuPlacement(internal val mirrorX: Boolean, internal val mirrorY: Boolean) {
+    /** The house placement: bottom of the screen, right-anchored, growing upward. */
+    BottomRight(mirrorX = false, mirrorY = false),
+
+    /** Top of the screen, right-anchored, growing downward. */
+    TopRight(mirrorX = false, mirrorY = true),
+
+    /** Bottom of the screen, left-anchored, growing upward. */
+    BottomLeft(mirrorX = true, mirrorY = false),
+
+    /** Top of the screen, left-anchored, growing downward. */
+    TopLeft(mirrorX = true, mirrorY = true),
+}
+
+/**
+ * The placement of the menu a [Pill] is drawn in. The whole stack is mirrored as one layer (see
+ * [H2g2PillMenu]); each pill reads this to turn its own text back the right way round.
+ */
+private val LocalPillMenuPlacement = compositionLocalOf { PillMenuPlacement.BottomRight }
+
+/** Mirrors this node about its own centre on the axes [placement] mirrors. A no-op for the house placement. */
+private fun Modifier.mirrored(placement: PillMenuPlacement): Modifier =
+    if (!placement.mirrorX && !placement.mirrorY) {
+        this
+    } else {
+        graphicsLayer {
+            scaleX = if (placement.mirrorX) -1f else 1f
+            scaleY = if (placement.mirrorY) -1f else 1f
+        }
+    }
+
+/**
+ * HG2Gui's breadcrumb pill stack. [roots] fan out as right-anchored pills; picking one drops it to
+ * the anchor row as the host, its children cascade from it, and each further pick settles into the
+ * shingled trail beside the host while the next band arrives. Tapping a crumb returns to that point.
+ * A stack taller than its bounds scrolls like a slot reel. Animations follow [H2g2Motion].
+ *
+ * [placement] chooses the corner it grows from: the default is the bottom of the screen growing
+ * upward; [PillMenuPlacement.TopRight] is the same menu for the top of a screen, growing downward.
+ */
 @Composable
 fun H2g2PillMenu(
     roots: List<MenuNode>,
     modifier: Modifier = Modifier,
+    placement: PillMenuPlacement = PillMenuPlacement.BottomRight,
     // isTerminal is true only when this call reports a pick that just fully resolved a
     // parameter (nothing left to drill into) - the signal a caller needs to auto-run instead of
     // waiting for a separate confirmation.
@@ -384,7 +438,11 @@ fun H2g2PillMenu(
         }
     }
 
-    Box(modifier.fillMaxSize()) {
+    // One mirrored layer around the whole stack, rather than a second copy of every lift, hinge and
+    // rotation with its sign flipped: the geometry below stays the single hand-tuned original, and
+    // pointer input is mapped through the same layer, so taps and drags land where they look.
+    CompositionLocalProvider(LocalPillMenuPlacement provides placement) {
+    Box(modifier.fillMaxSize().mirrored(placement)) {
         when (val p = phase) {
             is Phase.Browsing, is Phase.Leaving -> {
                 val leavingHost = (p as? Phase.Leaving)?.hostId
@@ -548,6 +606,7 @@ fun H2g2PillMenu(
                 }
             }
         }
+    }
     }
 }
 
@@ -1599,6 +1658,9 @@ internal fun Pill(
     extraEndPadding: Dp = 0.dp
 ) {
     val type = currentH2g2Type()
+    // In a mirrored menu the stack's layer has turned this pill over; each piece of text turns
+    // itself back about its own centre, so it reads normally at the mirrored position.
+    val upright = Modifier.mirrored(LocalPillMenuPlacement.current)
     val bg = if (selected) H2g2.ink else H2g2.hues[hue]
     val capBg = if (selected) H2g2.yellow else H2g2.caps[hue]
     // Selected is a fixed ink-bg/yellow-fg UI signal, not "text on an arbitrary background" - it
@@ -1671,7 +1733,7 @@ internal fun Pill(
                 // weight(fill = false) lets a long label ellipsize before it squeezes the cap out;
                 // it is only valid in a bounded Row (a stretched stack pill). A crumb's Row sits in
                 // a horizontal scroller, where a weighted child would be measured at zero width.
-                modifier = if (stretch) Modifier.weight(1f, fill = false) else Modifier
+                modifier = (if (stretch) Modifier.weight(1f, fill = false) else Modifier).then(upright)
             )
             if (cap != null) {
                 Box(
@@ -1687,7 +1749,8 @@ internal fun Pill(
                         text = cap.uppercase(),
                         color = capFg,
                         style = type.pillCap,
-                        maxLines = 1
+                        maxLines = 1,
+                        modifier = upright
                     )
                 }
             }
