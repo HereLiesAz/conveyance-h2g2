@@ -1,0 +1,1798 @@
+package com.hereliesaz.conveyance.h2g2.menu
+
+import com.hereliesaz.conveyance.h2g2.H2g2
+import com.hereliesaz.conveyance.h2g2.H2g2Motion
+import com.hereliesaz.conveyance.h2g2.Ground
+import com.hereliesaz.conveyance.h2g2.LocalH2g2Ground
+import com.hereliesaz.conveyance.h2g2.currentH2g2Type
+import com.hereliesaz.conveyance.h2g2.Text
+import com.hereliesaz.conveyance.h2g2.rememberReducedMotion
+import com.hereliesaz.conveyance.h2g2.scaledDelayMs
+import com.hereliesaz.conveyance.h2g2.contrastRatio
+import com.hereliesaz.conveyance.h2g2.StackEntrance
+import com.hereliesaz.conveyance.h2g2.staggerDelayMs
+import com.hereliesaz.conveyance.h2g2.stackInterval
+import com.hereliesaz.conveyance.h2g2.wobble
+import com.hereliesaz.conveyance.h2g2.H2g2.contrastingText
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.DecayAnimationSpec
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.calculateTargetValue
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateTo
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.rememberSplineBasedDecay
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.FlingBehavior
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.ScrollScope
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
+
+/*
+ * The HG2Gui suggestion menu — the Azphalt capsule as a key.
+ */
+
+/**
+ * The geometry of the command pills, in dp, public so the layout that hosts the stack (see
+ * FluidTerminalWorkspace) sizes its region from the same numbers instead of its own copies.
+ */
+object PillMetrics {
+    /** Height of the drawn capsule. */
+    val Height: Dp = 32.dp
+
+    /** Distance between consecutive rows of a stack. Equal to [TouchTarget], so two rows' hit
+     *  boxes tile exactly: no overlap, and no gap a thumb can fall into. */
+    val RowPitch: Dp = 48.dp
+
+    /** The pill's hit box height: Android's minimum interactive size. */
+    val TouchTarget: Dp = 48.dp
+
+    /** Pill widths are fractions of min(available width, this), so on a tablet or in a wide
+     *  window the stack keeps its phone-sized proportions instead of stretching across the screen. */
+    val MaxReferenceWidth: Dp = 480.dp
+}
+
+private val PILL_HEIGHT = PillMetrics.Height
+private val ROW_PITCH = PillMetrics.RowPitch
+// Android's own accessibility minimum tap target. Pill pads its *clickable* region out to this
+// (centred on the PILL_HEIGHT capsule) and ROW_PITCH equals it, so the boxes of adjacent rows
+// touch but never overlap.
+private val PILL_TOUCH_TARGET = PillMetrics.TouchTarget
+private val OVERHANG = 62.dp
+// Negative Arrangement.spacedBy for TrailRow - each crumb's left edge tucks this far under the
+// crumb before it. A quarter of TrailCrumb's own 56dp floor width: enough to read as a deliberate
+// overlap (the "each crumb overlapped by the one before it" fan) without hiding a short crumb
+// like `ls` entirely behind its neighbor.
+private val TRAIL_OVERLAP = (-14).dp
+// Every width fraction below is a fraction of the *reference width* - min(available width,
+// PillMetrics.MaxReferenceWidth) - not of the raw screen width, so a tablet or a wide window keeps
+// the phone-sized stack (see widthByRef / insetStartByRef).
+private const val HOST_WIDTH = 0.66f
+// HostPill's own right edge lands at exactly HOST_WIDTH * HOST_RIGHT_EDGE of the full width (see
+// the comment on that math below) - which, since HostPill is HOST_WIDTH wide, also happens to be
+// the fraction of the host's *own* width left on-screen (the rest bleeds off the left edge). At
+// 0.34 that was only 34% of the label visible - "Package management" read as an unrecognizable
+// "...MANAGEMENT" fragment, not a deliberate bleed. Raised to 0.55 so most host labels stay
+// legible; still bleeds some off the left edge, matching the house style used everywhere else in
+// this menu (OVERHANG, the root stack's own absoluteBleed), just no longer past the point of
+// losing the label's own meaning. Raised again to 0.80 now that labels are 13sp rather than 6sp: at
+// the old 0.55 a label like "PACKAGE MANAGEMENT" would have run off the left edge at the host's
+// resting spot (right edge: 0.80 * HOST_WIDTH = about 53% of the reference width).
+private const val HOST_RIGHT_EDGE = 0.80f
+private const val CHILD_LEFT = 0.30f
+// Child bands were 34% of the width, sized for 6sp labels; 13sp labels need roughly twice that to
+// show a typical option name ("--human-readable") before it ellipsizes.
+private const val CHILD_WIDTH = 0.58f
+// Menu Style Guide rule 01 (4%-per-row width variation, "so the stack reads as a stack") is
+// applied only to StackPill's own resting width below, via ROOT_WIDTH_STEP / rootWidthFraction -
+// never to HostPill. HostPill's constraint propagation (offsetByFractionOfParent / fillMaxWidth /
+// absoluteBleed interacting to park the host at HOST_RIGHT_EDGE) has been hand-tuned across two
+// prior PRs (#91/#92, and the HOST_RIGHT_EDGE value itself once more since); every line of
+// HostPill is left exactly as it was, so this variation can never touch that math. It's safe to
+// vary StackPill alone because of how offsetByFractionOfParent composes with fillMaxWidth:
+// StackPill's widthByRef(fraction) modifier (the reference-width twin of fillMaxWidth(fraction)) runs *first*, narrowing the constraints handed to
+// offsetByFractionOfParent, so with offset 0f (the resting, non-leaving state) a pill's right edge
+// simply lands at `fraction` of the full screen width - changing that one fillMaxWidth fraction
+// per row is the entire effect, with nothing downstream (absoluteBleed only extends the *left*
+// bleed) able to feed back into HostPill's own right-edge math.
+private const val ROOT_WIDTH_STEP = 0.04f
+
+/** StackPill's resting width, cycling every five rows per the base cascade's own "cycling every
+ *  five" language - triangling 0/1/2/1 steps down from [HOST_WIDTH] keeps every row's right edge
+ *  at or below HOST_WIDTH (never above it), so rule 01's "right end never passes two thirds of the
+ *  screen width" (HOST_WIDTH = 66% is already just under that) holds for every row, not just row 0. */
+private fun rootWidthFraction(row: Int): Float {
+    val stepsDown = intArrayOf(0, 1, 2, 1, 2)[row % 5]
+    return HOST_WIDTH - ROOT_WIDTH_STEP * stepsDown
+}
+
+// Same "so the stack reads as a stack" cycling rootWidthFraction gives the root stack, scaled to
+// CHILD_WIDTH's own narrower range - a child band is a stack too, and was the one place still
+// rendering every pill at one identical width instead of varying by row.
+private const val CHILD_WIDTH_STEP = 0.03f
+private fun childWidthFraction(localIndex: Int): Float {
+    val stepsDown = intArrayOf(0, 1, 2, 1, 2)[localIndex % 5]
+    return CHILD_WIDTH - CHILD_WIDTH_STEP * stepsDown
+}
+// HostPill is HOST_WIDTH wide, offset left by (1 - HOST_RIGHT_EDGE) * HOST_WIDTH, so its right
+// edge lands at HOST_WIDTH * HOST_RIGHT_EDGE of the full width. The trail row shares row 0 with
+// the host, and reads as a continuation of it - "each pill overlapped by the one before it," the
+// same shingled-fan language TRAIL_OVERLAP already gives every crumb after the first - so the
+// trail's own left edge starts *before* that right edge, not after: a plain gap here would be the
+// one seam in the chain that doesn't fan like the rest of it. -0.035 is TRAIL_OVERLAP's -14dp
+// expressed as roughly the same fraction of a typical phone's width, so the host-to-first-crumb
+// overlap reads the same size as every crumb-to-crumb one that follows it.
+private const val TRAIL_LEFT_OF_FULL = HOST_WIDTH * HOST_RIGHT_EDGE - 0.035f
+// Row 0 is reserved for the host and the trail of picks below it; every band of choices fans
+// out starting one row above that, never on top of it.
+private const val BAND_BASE_ROW = 1
+
+/**
+ * A stack (root pills or a child band) fans up row by row from a shared base with no cap on how
+ * many rows exist - a category discovered live from PATH can easily hold more than one screen's
+ * height at [ROW_PITCH] apart. Since every pill in a stack is positioned by an absolute animated
+ * `translationY` rather than real flow layout (so the "fly up from a shared anchor" entrance
+ * motion works), a stock `verticalScroll`/`LazyColumn` can't be dropped in - Compose would size
+ * the scroll region to each pill's own (viewport-sized) Box, not to the stack's actual extent.
+ * This adds a plain drag-tracked offset instead, applied on top of each pill's own animated lift.
+ * Drag direction is "content follows the finger" (drag down reveals rows further up the stack,
+ * same as pulling down to see earlier messages in a chat) - unverified on a real device, since
+ * none was available while building this; a backwards feel is a one-line sign flip, not a
+ * structural fix.
+ */
+// Row 0 - where a stack's front pill rests - is also where a host's trail of picks lives once
+// one is open. [StackScroll.alignedRow] names whichever row currently sits at that fixed spot,
+// which reads as "primed" (ink) purely as a cosmetic marker of what's nearest the front of the
+// stack - it never fires anything by itself. Every pill is tappable wherever it sits in the
+// band; scrolling never substitutes for the tap. -1 (never a real row) until the user has
+// actually dragged or flung the stack at least once - without that guard, whichever pill starts
+// out sitting at row 0 (the stack's own resting position, before any input) rendered ink from
+// the very first frame, reading as something already auto-selected.
+private class StackScroll(val modifier: Modifier, val offsetPx: Float, val alignedRow: Int)
+
+@Composable
+private fun rememberStackScroll(rowMin: Int, rowMax: Int, resetKey: Any? = Unit): StackScroll {
+    val density = LocalDensity.current
+    val pitchPx = with(density) { ROW_PITCH.toPx() }
+    // Keyed on [resetKey], not bare `remember` - without it this state lives in the *call site's*
+    // own remember scope rather than the current stack's. A child band's call is already wrapped
+    // in key(anchor.id) at its own call site, so this is redundant there; the root stack's call
+    // has no such wrapper (Phase.Browsing/Leaving is one continuous call site across every visit),
+    // so its own scroll offset and "has this actually been scrolled" flag otherwise persist
+    // forever - scroll a long stack, close it, reopen a short one, and row 0 still renders primed
+    // from a scroll the new stack never had.
+    var offsetPx by remember(resetKey) { mutableStateOf(0f) }
+    var hasScrolled by remember(resetKey) { mutableStateOf(false) }
+    // [offsetPx] is added on top of every pill's own already-correct resting `lift` (row R rests
+    // at -pitchPx*R, so translationY = -pitchPx*R + offsetPx; row R lands exactly on the
+    // breadcrumb, translationY 0, when offsetPx == +pitchPx*R - always non-negative, since every
+    // row index is). A scroll is really the whole rigid stack sliding through that one fixed
+    // breadcrumb slot: which row currently sits there changes continuously as offsetPx sweeps
+    // from one end to the other, in row order - a pill passing *through* translationY 0 on its
+    // way past is normal scrolling, not something to prevent. What must stay bounded is only the
+    // two ends of the real content:
+    //  - the closest-to-breadcrumb pill (rowMin) at the breadcrumb (offsetPx == pitchPx*rowMin,
+    //    0 for the root stack, one pitch for a child band) - the smallest offsetPx worth
+    //    reaching, since going lower would show nothing but blank space below where a real row
+    //    ever sits.
+    //  - the furthest-from-breadcrumb pill (rowMax) at the breadcrumb (offsetPx ==
+    //    pitchPx*rowMax) - the largest offsetPx worth reaching, past which there's no further
+    //    row to bring into that slot either.
+    // Both ends stop dead at their pill, matching the "no bounce, no self-correcting" house rule
+    // the settle already follows - unverified on a real device, since none was available while
+    // building this; a backwards feel is a one-line sign flip, not a structural fix.
+    val minOffsetPx = pitchPx * rowMin
+    val maxOffsetPx = pitchPx * rowMax
+    val scrollState = rememberScrollableState { delta ->
+        hasScrolled = true
+        val next = (offsetPx + delta).coerceIn(minOffsetPx, maxOffsetPx)
+        val consumed = next - offsetPx
+        offsetPx = next
+        consumed
+    }
+    val flingBehavior = rememberSlotFlingBehavior(pitchPx = pitchPx) { offsetPx }
+    val modifier = Modifier.scrollable(
+        orientation = Orientation.Vertical,
+        state = scrollState,
+        flingBehavior = flingBehavior
+    )
+    val alignedRow = if (hasScrolled && pitchPx > 0f) (offsetPx / pitchPx).roundToInt() else -1
+    return StackScroll(modifier, offsetPx, alignedRow)
+}
+
+/**
+ * The *target* row is computed from the same natural-deceleration curve any fling has - no extra
+ * pull while it's still moving fast - then rounded to the nearest row boundary, the tick a
+ * slot-machine reel or a wheel-of-fortune wheel has as it slows down. The trick is computing
+ * where a plain, un-snapped coast would already come to rest and rounding *that* to the nearest
+ * row, rather than stopping the coast early to snap separately: a hard flick's natural stopping
+ * point is many rows away, so rounding it barely nudges where a long coast ends up landing; a
+ * gentle release's stopping point is right where the finger let go, so the same rounding snaps it
+ * onto the nearest row almost immediately. One formula, and the "less effect the faster it's
+ * going" feel falls out of it for free instead of needing a separate velocity threshold. The
+ * actual motion *to* that target is a separate, critically-damped spring (see
+ * [SlotFlingBehavior.performFling]) - the decay curve here only ever picks where the spring is
+ * headed, it doesn't drive the frame-by-frame motion itself.
+ */
+@Composable
+private fun rememberSlotFlingBehavior(pitchPx: Float, currentOffsetPx: () -> Float): FlingBehavior {
+    val decay = rememberSplineBasedDecay<Float>()
+    return remember(pitchPx, decay) { SlotFlingBehavior(pitchPx, currentOffsetPx, decay) }
+}
+
+private class SlotFlingBehavior(
+    private val pitchPx: Float,
+    private val currentOffsetPx: () -> Float,
+    private val decay: DecayAnimationSpec<Float>
+) : FlingBehavior {
+    override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
+        if (pitchPx <= 0f) return initialVelocity
+        val current = currentOffsetPx()
+        val naturalTarget = decay.calculateTargetValue(0f, initialVelocity)
+        val snapped = ((current + naturalTarget) / pitchPx).roundToInt() * pitchPx
+        val distance = snapped - current
+        var traveled = 0f
+        // DampingRatioNoBouncy only rules out a spring that overshoots and corrects *back*; it
+        // doesn't rule out overshoot itself. A release with velocity carrying past `distance`
+        // (e.g. a quick flick that decays to a target just behind where the finger let go) can
+        // still cross the target before the spring pulls it to rest there - it just won't bounce
+        // past it a second time. In practice this reads as "no bounce" because the common case
+        // (velocity already pointed at the target) settles without crossing it.
+        AnimationState(initialValue = 0f, initialVelocity = initialVelocity).animateTo(
+            targetValue = distance,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+        ) {
+            scrollBy(value - traveled)
+            traveled = value
+        }
+        return 0f
+    }
+}
+
+data class MenuNode(
+    val id: String,
+    val label: String,
+    val cap: String? = null,
+    val children: List<MenuNode> = emptyList(),
+    // Resolves this node's real children on demand - a directory listing, a PATH scan - instead
+    // of a list fully materialized up front. Takes priority over [children] when present. Called
+    // once per navigation into this node (see H2g2PillMenu's `effectiveChildren`), not on every
+    // recomposition, since it can do real I/O.
+    val resolveChildren: (() -> List<MenuNode>)? = null,
+    // The token text this node contributes when picked, if different from what's shown on the
+    // pill - e.g. a file leaf displays just its name but contributes its full path.
+    val value: String? = null,
+    // False for purely navigational nodes (a "browse for a file" trigger, a directory on the way
+    // to one) that should never themselves become part of the command line - only the leaf a
+    // pick chain actually resolves to should.
+    val emitsToken: Boolean = true,
+    // Non-null for a pill that launches a multi-step UI-state wizard (e.g. the ssh "new…" leaf,
+    // which collects host/port/key through SessionUiState's prompt machinery) instead of
+    // contributing a token or drilling into more children. Picking it still settles into the
+    // trail like any other pick, but H2g2PillMenu calls onWizard instead of onRun for it.
+    val wizardId: String? = null,
+    // True for a wizard that anchors its own animation to where this pick's trail crumb lands
+    // (e.g. the Select File/Folder pill running the screen's perimeter from that exact spot) -
+    // onWizard fires only after the crumb has actually settled into the trail and reported its
+    // position via onCrumbPositioned, instead of firing immediately like every other wizard.
+    val settleBeforeWizard: Boolean = false,
+)
+
+/** The literal command-line text this node contributes when picked, or null if it never does. */
+private fun MenuNode.tokenValue(): String? = if (emitsToken) (value ?: label) else null
+
+/** True once picking this node fully resolves a parameter - nothing more to drill into. */
+private fun MenuNode.isTerminal(): Boolean = children.isEmpty() && resolveChildren == null
+
+private sealed interface Phase {
+    object Browsing : Phase
+    data class Leaving(val hostId: String) : Phase
+    data class Open(val hostId: String) : Phase
+}
+
+/**
+ * Which corner of its bounds an [H2g2PillMenu] grows from. The house stack is [BottomRight]: pills
+ * anchored by their right ends, bleeding off the left edge, fanning upward from the bottom. The
+ * others are that same stack mirrored, so every entrance, the host drop, the child cascade, the
+ * trail and the slot-reel scroll play exactly as designed, in the mirrored direction:
+ *
+ * - [TopRight] sits at the top of a screen and its stacks fall downward (a host drops *up* to the
+ *   top row; its children cascade down from it).
+ * - [BottomLeft] / [TopLeft] anchor pills by their left ends and bleed off the right edge, with the
+ *   label and end-cap at the left.
+ *
+ * Labels are always drawn upright and readable; only position and motion are mirrored.
+ */
+enum class PillMenuPlacement(internal val mirrorX: Boolean, internal val mirrorY: Boolean) {
+    /** The house placement: bottom of the screen, right-anchored, growing upward. */
+    BottomRight(mirrorX = false, mirrorY = false),
+
+    /** Top of the screen, right-anchored, growing downward. */
+    TopRight(mirrorX = false, mirrorY = true),
+
+    /** Bottom of the screen, left-anchored, growing upward. */
+    BottomLeft(mirrorX = true, mirrorY = false),
+
+    /** Top of the screen, left-anchored, growing downward. */
+    TopLeft(mirrorX = true, mirrorY = true),
+}
+
+/**
+ * The placement of the menu a [Pill] is drawn in. The whole stack is mirrored as one layer (see
+ * [H2g2PillMenu]); each pill reads this to turn its own text back the right way round.
+ */
+private val LocalPillMenuPlacement = compositionLocalOf { PillMenuPlacement.BottomRight }
+
+/** Mirrors this node about its own centre on the axes [placement] mirrors. A no-op for the house placement. */
+private fun Modifier.mirrored(placement: PillMenuPlacement): Modifier =
+    if (!placement.mirrorX && !placement.mirrorY) {
+        this
+    } else {
+        graphicsLayer {
+            scaleX = if (placement.mirrorX) -1f else 1f
+            scaleY = if (placement.mirrorY) -1f else 1f
+        }
+    }
+
+/**
+ * HG2Gui's breadcrumb pill stack. [roots] fan out as right-anchored pills; picking one drops it to
+ * the anchor row as the host, its children cascade from it, and each further pick settles into the
+ * shingled trail beside the host while the next band arrives. Tapping a crumb returns to that point.
+ * A stack taller than its bounds scrolls like a slot reel. Animations follow [H2g2Motion].
+ *
+ * [placement] chooses the corner it grows from: the default is the bottom of the screen growing
+ * upward; [PillMenuPlacement.TopRight] is the same menu for the top of a screen, growing downward.
+ */
+@Composable
+fun H2g2PillMenu(
+    roots: List<MenuNode>,
+    modifier: Modifier = Modifier,
+    placement: PillMenuPlacement = PillMenuPlacement.BottomRight,
+    // isTerminal is true only when this call reports a pick that just fully resolved a
+    // parameter (nothing left to drill into) - the signal a caller needs to auto-run instead of
+    // waiting for a separate confirmation.
+    onRun: (tokens: List<String>, isTerminal: Boolean) -> Unit = { _, _ -> },
+    // Called instead of onRun when the picked child has a wizardId - the caller owns whatever
+    // multi-step flow that id names.
+    onWizard: (wizardId: String) -> Unit = {},
+    // Reports a trail crumb's on-screen rect (root coordinates) every time it's laid out - only
+    // consumed by a settleBeforeWizard pick that needs to anchor an animation to it.
+    onCrumbPositioned: (id: String, rect: Rect) -> Unit = { _, _ -> }
+) {
+    var phase by remember { mutableStateOf<Phase>(Phase.Browsing) }
+    // Everything picked below the root host. Each pick drops out of the band it was chosen
+    // from and settles here for good; the band above always cascades fresh for whatever is
+    // currently last, so drilling deeper never grows the total height - it just swaps what's
+    // fanned out for the next choice's own children.
+    var trail by remember { mutableStateOf<List<MenuNode>>(emptyList()) }
+    var tokens by remember { mutableStateOf(listOf<String>()) }
+    // Bumped every time the root stack returns to Browsing - the identity the root's own
+    // rememberStackScroll resets against (see B5's comment there), and the same identity a fresh
+    // StackEntrance is rolled against below, since Phase.Browsing has no hostId of its own to key
+    // on the way a child band already keys on its anchor's id.
+    var rootArrivalToken by remember { mutableStateOf(0) }
+    // Chosen once per stack build and handed down to every root pill - never rolled per pill, or
+    // rows in the same arrival could disagree about which entrance they're playing. Root-only:
+    // a child band keeps its own fixed cascade, unaffected by this roll.
+    val entrance = remember(rootArrivalToken) { StackEntrance.roll() }
+    val scope = rememberCoroutineScope()
+
+    fun openHost(node: MenuNode) {
+        // Guards the same race ChildBand's own `selected == null` check guards: without it, a
+        // second root pill tapped while the first is still mid-Leaving would overwrite `phase`
+        // with a new hostId, stranding the first pill's in-flight leave animation and letting two
+        // picks fire from the one gesture.
+        if (phase != Phase.Browsing) return
+        phase = Phase.Leaving(node.id)
+        tokens = emptyList()
+        onRun(tokens, false)
+        scope.launch {
+            delay(scaledDelayMs(H2g2Motion.SLIDE_MS))
+            trail = emptyList()
+            phase = Phase.Open(node.id)
+        }
+    }
+
+    // One mirrored layer around the whole stack, rather than a second copy of every lift, hinge and
+    // rotation with its sign flipped: the geometry below stays the single hand-tuned original, and
+    // pointer input is mapped through the same layer, so taps and drags land where they look.
+    CompositionLocalProvider(LocalPillMenuPlacement provides placement) {
+    Box(modifier.fillMaxSize().mirrored(placement)) {
+        when (val p = phase) {
+            is Phase.Browsing, is Phase.Leaving -> {
+                val leavingHost = (p as? Phase.Leaving)?.hostId
+                val stackScroll = rememberStackScroll(
+                    rowMin = 0,
+                    rowMax = (roots.size - 1).coerceAtLeast(0),
+                    resetKey = rootArrivalToken
+                )
+
+                Box(Modifier.fillMaxSize().padding(bottom = 4.dp).then(stackScroll.modifier)) {
+                    roots.forEachIndexed { i, node ->
+                        // Roots aren't always a fixed static list - a contextual entry like the
+                        // suggestions host can appear or disappear between recompositions - so
+                        // each pill's remembered animation state has to travel with its id, not
+                        // its position in the list, or a size change would hand one pill's
+                        // in-flight state to a different node.
+                        key(node.id) {
+                            val row = roots.size - 1 - i
+                            StackPill(
+                                node = node,
+                                position = StackPillPosition(row, roots.size, stackScroll.offsetPx),
+                                arrival = StackPillArrival(entrance, rootArrivalToken),
+                                phase = StackPillPhase(
+                                    leaving = leavingHost != null,
+                                    isHost = node.id == leavingHost,
+                                    entering = leavingHost == null,
+                                    aligned = row == stackScroll.alignedRow
+                                ),
+                                onClick = { openHost(node) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            is Phase.Open -> {
+                // A contextual root (the suggestion/answer host) can vanish from `roots` between
+                // recompositions - e.g. picking it clears the input text that made it appear -
+                // while this phase is still mid-animation toward it. Closing back to Browsing
+                // here avoids crashing on a lookup that can no longer succeed.
+                val host = roots.firstOrNull { it.id == p.hostId }
+                if (host == null) {
+                    LaunchedEffect(p.hostId) {
+                        trail = emptyList()
+                        phase = Phase.Browsing
+                    }
+                } else {
+                    val rowsBelow = roots.size - 1 - roots.indexOf(host)
+                    val anchor = trail.lastOrNull() ?: host
+                    // Resolved once per anchor, not on every recomposition - resolveChildren can do
+                    // real I/O (a directory listing, a PATH scan), so it runs off the main thread
+                    // via produceState, keyed on the anchor id AND the resolver itself: a rebuilt
+                    // tree hands back a fresh resolver, which re-resolves instead of showing stale
+                    // children. The id travels with the result so a late result for the previous
+                    // anchor is never shown under the new one.
+                    val resolver = anchor.resolveChildren
+                    val resolved by produceState<Pair<String, List<MenuNode>>?>(null, anchor.id, resolver) {
+                        if (resolver != null) {
+                            val children = withContext(Dispatchers.Default) {
+                                try {
+                                    resolver()
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    emptyList()
+                                }
+                            }
+                            value = anchor.id to children
+                        }
+                    }
+                    val effectiveChildren = when {
+                        resolver == null -> anchor.children
+                        resolved?.first == anchor.id -> resolved!!.second
+                        else -> emptyList()
+                    }
+                    // ChildBand's own `selected == null` check only guards against a second tap
+                    // landing on one of ITS OWN sibling pills - it has no way to know about
+                    // HostPill or TrailRow, which sit outside it and keep accepting taps for the
+                    // whole DROP_MS+SWING_MS hand-off delay below, before `trail` actually
+                    // updates and swaps in the next band. A tap landing there during that window
+                    // still fires against the *old* anchor - e.g. HostPill resetting all the way
+                    // back to Browsing - even though a pick already committed and is mid-flight.
+                    // Resets itself the instant `anchor.id` actually changes (remember's key),
+                    // exactly when the next band takes over.
+                    var pendingPick by remember(anchor.id) { mutableStateOf(false) }
+
+                    if (effectiveChildren.isNotEmpty()) {
+                        key(anchor.id) {
+                            ChildBand(
+                                children = effectiveChildren,
+                                onPick = { child ->
+                                    pendingPick = true
+                                    if (child.wizardId != null && child.settleBeforeWizard) {
+                                        // This wizard anchors an animation to the crumb's actual
+                                        // landing spot, so it can't fire until the crumb exists and
+                                        // has reported its position - unlike every other wizard,
+                                        // which fires immediately below.
+                                        scope.launch {
+                                            delay(scaledDelayMs(H2g2Motion.DROP_MS + H2g2Motion.SWING_MS))
+                                            trail = trail + child
+                                            // One extra beat so the new crumb actually gets laid
+                                            // out and reports its position before onWizard reads it.
+                                            delay(scaledDelayMs(32))
+                                            onWizard(child.wizardId)
+                                        }
+                                    } else {
+                                        if (child.wizardId != null) {
+                                            onWizard(child.wizardId)
+                                        } else {
+                                            tokens = (trail + child).mapNotNull { it.tokenValue() }
+                                            onRun(tokens, child.isTerminal())
+                                        }
+                                        scope.launch {
+                                            // Let the pick's own drop-and-grow finish, plus one beat
+                                            // to settle, before swapping the band for its children -
+                                            // so the next cascade always starts after the hand-off is
+                                            // visible, never on top of it.
+                                            delay(scaledDelayMs(H2g2Motion.DROP_MS + H2g2Motion.SWING_MS))
+                                            trail = trail + child
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    // TrailRow first, HostPill second: with neither given an explicit zIndex, a
+                    // plain Box stacks its children in declaration order, later on top - so
+                    // whichever of these two is declared last wins the shared boundary where the
+                    // trail's own TRAIL_LEFT_OF_FULL overlap runs it into the host. The host reads
+                    // as the anchor the whole trail hangs off of - conceptually "before" crumb
+                    // zero, the same way crumb zero sits on top of crumb one below - so it has to
+                    // be declared after TrailRow, not before, to stay on top of that first crumb
+                    // instead of being covered by it.
+                    TrailRow(
+                        trail = trail,
+                        hueOwner = host.id,
+                        onTapCrumb = { i ->
+                            if (!pendingPick) {
+                                trail = trail.take(i)
+                                tokens = trail.mapNotNull { it.tokenValue() }
+                                onRun(tokens, false)
+                            }
+                        },
+                        onCrumbPositioned = onCrumbPositioned
+                    )
+
+                    HostPill(
+                        node = host,
+                        rowsBelow = rowsBelow,
+                        onClick = {
+                            if (!pendingPick) {
+                                phase = Phase.Browsing
+                                trail = emptyList()
+                                tokens = emptyList()
+                                rootArrivalToken++
+                                onRun(tokens, false)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+    }
+}
+
+/** Which row this pill is, how many rows are in the stack, and the root stack's own scroll
+ *  offset - bundled together (rather than a separate parameter) to keep [StackPill] under
+ *  detekt's LongParameterList ceiling. See [StackEntranceMotion.play] for row/rowCount. */
+private data class StackPillPosition(val row: Int, val rowCount: Int, val scrollOffsetPx: Float)
+
+/** The stack-wide entrance roll and the arrival identity it was rolled against - see H2g2PillMenu's
+ *  own `rootArrivalToken` comment for why the root stack needs an explicit identity here where a
+ *  child band can just key on its anchor's id. */
+private data class StackPillArrival(val entrance: StackEntrance, val entranceKey: Int)
+
+/** The four booleans that describe where in the host hand-off this pill currently sits. */
+private data class StackPillPhase(val leaving: Boolean, val isHost: Boolean, val entering: Boolean, val aligned: Boolean)
+
+@Composable
+private fun StackPill(
+    node: MenuNode,
+    position: StackPillPosition,
+    arrival: StackPillArrival,
+    phase: StackPillPhase,
+    onClick: () -> Unit
+) {
+    val (row, rowCount, scrollOffsetPx) = position
+    val (entrance, entranceKey) = arrival
+    // Not destructured (detekt caps that at 3 components) - read straight off the bundle instead.
+    val leaving = phase.leaving
+    val isHost = phase.isHost
+    // Animations off (system "Remove animations"): arrive already at rest instead of playing an
+    // entrance that would just be cut to zero length - and with no wobble to follow it.
+    val entering = phase.entering && !rememberReducedMotion()
+    val aligned = phase.aligned
+    val restWidthFraction = if (isHost) HOST_WIDTH else rootWidthFraction(row)
+    val target = when {
+        !leaving -> 0f
+        isHost -> HOST_RIGHT_EDGE - 1f
+        else -> -1.7f
+    }
+    val density = LocalDensity.current
+    val pitchPx = with(density) { ROW_PITCH.toPx() }
+    // The row a pill rests on is now a fixed value, not an Animatable of its own - only a
+    // StackEntrance variant's own riseY (see StackEntranceMotion) supplies any vertical entrance
+    // motion, always settling back to 0, so translationY = restLift + riseY.value is correct on
+    // every frame without a LaunchedEffect keeping it in sync.
+    val restLift = -pitchPx * row
+    val geometry = StackRowGeometry(row, rowCount, pitchPx, restWidthFraction)
+
+    // `offset` doubles as the leaving sweep's own translateX and Stack Entrances' `slideX`
+    // (fraction of the pill's OWN width, per offsetByFractionOfParent's own semantics - it runs
+    // after fillMaxWidth in this modifier chain, so its `constraints.maxWidth` is already this
+    // pill's own target width, not the full screen's).
+    // Keyed on entranceKey, not left unkeyed: `key(node.id)` above keeps the same root pill's
+    // composable slot alive across an entire open-then-back-to-Browsing cycle, so an unkeyed
+    // remember here only ever seeds StackEntranceMotion's initial pose once, the very first time
+    // this node is ever composed - every later re-arrival (closing an open category back to
+    // Browsing is the everyday case, not a rare one) reused that same instance, already settled
+    // at its previous entrance's rest pose, and depended on the entrance LaunchedEffect's own
+    // async snapTo() to hide it again - reintroducing the exact flash this seeding exists to
+    // prevent, just on every re-arrival after the first instead of on first mount.
+    val motion = remember(entranceKey) { StackEntranceMotion(initialPoseFor(entering, entrance, row, geometry)) }
+    val sway = remember { Animatable(0f) } // degrees, additive wobble - see PillWobble.kt
+
+    // Keyed on the stack's own arrival identity (entranceKey), not `entering` alone: a pill
+    // composed while already resting must still animate when a later stack arrives with a new
+    // entrance (audit bug B1's fix, generalised - `remember` seeding from a value that changes is
+    // the trap here, not any one Animatable in particular).
+    LaunchedEffect(leaving, entering, entrance, entranceKey) {
+        motion.enterOrLeave(entering, entrance, target, geometry, sway)
+    }
+    LaunchedEffect(entering, entrance, entranceKey) {
+        playStackSway(sway, entering, entrance, row)
+    }
+
+    StackPillVisual(
+        StackPillContext(node, row, restWidthFraction, restLift, scrollOffsetPx, leaving, isHost, aligned, entrance),
+        motion,
+        sway,
+        onClick
+    )
+}
+
+/** One row's worth of the geometry a [StackEntrance] variant needs - see [StackEntranceMotion.play]. */
+private data class StackRowGeometry(val row: Int, val rowCount: Int, val pitchPx: Float, val restWidthFraction: Float)
+
+/** Everything [StackPillVisual] needs besides the two Animatable bundles - see its own doc. */
+private data class StackPillContext(
+    val node: MenuNode,
+    val row: Int,
+    val restWidthFraction: Float,
+    val restLift: Float,
+    val scrollOffsetPx: Float,
+    val leaving: Boolean,
+    val isHost: Boolean,
+    val aligned: Boolean,
+    val entrance: StackEntrance
+)
+
+// The wobble accompanies any entrance that travels as a pile. Six are excluded, for the same
+// reason: Unfold and Extend do not move at all (only their own width does), while Cascade,
+// Unroll, Tumble, and Deal move one row at a time (or in Unroll/Tumble's case, an overlapping
+// few at once, but still each on its own hinge). A sway needs a pile in motion together; a
+// single pill swinging (or growing) alone has nothing to sway against.
+private suspend fun playStackSway(
+    sway: Animatable<Float, AnimationVector1D>,
+    entering: Boolean,
+    entrance: StackEntrance,
+    row: Int
+) {
+    if (!entering) return
+    val amplitudeScale = when (entrance) {
+        StackEntrance.Unfold, StackEntrance.Cascade, StackEntrance.Deal, StackEntrance.Extend,
+        StackEntrance.Unroll, StackEntrance.Tumble -> return
+        StackEntrance.Rally -> 2f
+        else -> 1f
+    }
+    sway.wobble(row, H2g2Motion.SLIDE_MS, amplitudeScale)
+}
+
+// The vertical component of every "pivot on the right (or left) tip" TransformOrigin below -
+// dead centre of the pill's own height, never the top or bottom edge.
+private const val ORIGIN_CENTER_Y = .5f
+// Tumble's own horizontal counterpart - dead centre of the pill's own width, for a pivot on its
+// top or bottom edge instead of a left/right tip.
+private const val ORIGIN_CENTER_X = .5f
+
+@Composable
+private fun StackPillVisual(
+    ctx: StackPillContext,
+    motion: StackEntranceMotion,
+    sway: Animatable<Float, AnimationVector1D>,
+    onClick: () -> Unit
+) {
+    Box(Modifier.fillMaxSize()) {
+        Pill(
+            label = ctx.node.label,
+            cap = ctx.node.cap,
+            hue = H2g2.hueOf(ctx.node.id),
+            // Ink is already what "open"/selected reads as everywhere in the menu; a pill that's
+            // scrolled into the fixed row-0 spot gets the same treatment - primed to be tapped
+            // next, not yet picked.
+            selected = (ctx.leaving && ctx.isHost) || (ctx.aligned && !ctx.leaving),
+            touchTargetHeight = ROW_PITCH,
+            onClick = onClick,
+            enabled = !ctx.leaving,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                // The row-varied width is only for pills staying in the browsing stack - the one
+                // becoming the host has to already be HOST_WIDTH wide, matching exactly what
+                // HostPill renders once this phase completes, or `target`'s offset below (derived
+                // assuming HOST_WIDTH) lands the wrong row's right edge somewhere other than
+                // HOST_RIGHT_EDGE and then visibly pops into place the instant HostPill takes over.
+                .widthByRef(ctx.restWidthFraction * motion.lenFrac.value)
+                .offsetByFractionOfParent(motion.offset.value)
+                .absoluteBleed(OVERHANG)
+                .graphicsLayer {
+                    transformOrigin = when (ctx.entrance) {
+                        StackEntrance.Deal -> TransformOrigin(1f, 1f) // hinged bottom-right
+                        StackEntrance.Cascade, StackEntrance.Unroll ->
+                            if (ctx.row % 2 == 0) {
+                                TransformOrigin(0f, ORIGIN_CENTER_Y)
+                            } else {
+                                TransformOrigin(1f, ORIGIN_CENTER_Y)
+                            }
+                        // Tumble is Unroll's own wave with the hinge rotated 90 - top edge, then
+                        // bottom, alternating - instead of Cascade/Unroll's left-tip/right-tip.
+                        StackEntrance.Tumble ->
+                            if (ctx.row % 2 == 0) {
+                                TransformOrigin(ORIGIN_CENTER_X, 0f)
+                            } else {
+                                TransformOrigin(ORIGIN_CENTER_X, 1f)
+                            }
+                        else -> TransformOrigin(1f, ORIGIN_CENTER_Y) // the visible right end
+                    }
+                    rotationZ = motion.turn.value + motion.tilt.value + sway.value
+                    translationY = ctx.restLift + motion.riseY.value + ctx.scrollOffsetPx
+                    alpha = motion.alpha.value
+                }
+        )
+    }
+}
+
+/**
+ * The five Animatables a [StackEntrance] variant can drive for one [StackPill], bundled so
+ * [play] - and every per-variant function it dispatches to - stays a short, single-purpose
+ * function instead of one function switching on all eight variants at once.
+ */
+// How far off the pill's own width a slide starts/ends, as a fraction of it - comfortably clear
+// of the bled-left/right edges regardless of row width.
+private const val OFFSCREEN_FRACTION = 1.7f
+private const val SLIDE_CORRECT_MS = 90 // Slide's own top-row correction window
+private const val SLIDE_OVERSHOOT_FRACTION = 0.06f // of a row pitch, past the resting slot
+private const val UNFOLD_STAGGER_MS = 26 // per-row delay, bottom to top
+private const val DROP_START_MULTIPLIER = 1.4f // of a row pitch, above the resting row
+private const val DROP_SHORT_FRACTION = 0.04f // of a row pitch, short of the resting row
+private const val DROP_SETTLE_MS = 60
+private const val CASCADE_TURN_DEG = 360f
+private const val DEAL_STEP_MS = 90
+// Genuinely offscreen: past the tile's own bottom-right corner, not a small nudge - the arrival
+// has to read as "from outside the frame" (docs/HG2Gui Stack Entrances.dc.html).
+private const val DEAL_START_X_FRACTION = 2.6f
+private const val DEAL_START_Y_MULTIPLIER = 6f
+private const val DEAL_TILT_DEG = 18f
+private const val TELESCOPE_STEP_MS = 120
+private const val EXTEND_ANCHOR_START_FRACTION = 0.62f
+// Unroll/Tumble's own per-row delay, as a fraction of the swing's own duration rather than a
+// fixed ms figure - short enough that several rows are visibly mid-swing at once, long enough
+// that the wave still reads as travelling row to row rather than firing all at once.
+private const val SWING_WAVE_STAGGER_FRACTION = 0.4f
+
+/** A [StackEntranceMotion]'s five Animatables, as plain values - see [initialPoseFor]. Defaults
+ *  are the at-rest pose (nothing displaced), the correct starting point for a pill that mounts
+ *  already [StackPillPhase.entering] false. */
+private data class StackEntrancePose(
+    val offset: Float = 0f,
+    val riseY: Float = 0f,
+    val lenFrac: Float = 1f,
+    val turn: Float = 0f,
+    val tilt: Float = 0f,
+    // 1f (fully visible) for every variant except Cascade/Telescope: those two are the only ones
+    // that "hide" a waiting row by parking it at the row below's own position rather than off-
+    // canvas or at zero width - a trick that never actually worked, since rotating a full 360°
+    // reads identically to 0° and each row's width cycles (see rootWidthFraction) rather than
+    // shrinking monotonically, so a wider waiting row is never reliably covered by a narrower one
+    // in front of it. Those two variants instead start this at 0, so nothing of the real pill is
+    // visible while it's still parked behind its predecessor waiting its turn - but it fades back
+    // in over H2g2Motion.REVEAL_FRACTION once its OWN motion actually begins, not withheld until the
+    // final lift lands: holding it at 0 across the whole swing/draw-out (as this first shipped)
+    // hid the very motion the entrance exists to show, so the pill only ever seemed to "pop" into
+    // its resting row with no visible cascade at all.
+    val alpha: Float = 1f
+)
+
+/**
+ * The pose a [StackEntrance] variant's own `play*` function snaps to before it starts animating -
+ * mirrored here as a pure function so [StackPill] can seed [StackEntranceMotion]'s Animatables
+ * with it directly, at construction, instead of leaving them at their own generic defaults (the
+ * pill's fully-visible, at-rest pose) for the frame or two between first composition and this
+ * pill's own entrance [LaunchedEffect] actually reaching its first `snapTo()` call. That gap was
+ * a real, visible one: every pill in a freshly-arrived stack would flash into view at its final
+ * row position - "hidden behind each other" only after the animation caught up with itself,
+ * rather than from the very first frame. Each `play*` function's own `snapTo()` calls are left in
+ * place as a harmless no-op safety net (they re-set the same value this function already seeded),
+ * so the two can never drift into disagreement silently - a changed starting pose only has one
+ * place, this function, that actually needs updating.
+ */
+private fun initialPoseFor(entering: Boolean, entrance: StackEntrance, row: Int, geometry: StackRowGeometry): StackEntrancePose {
+    if (!entering) return StackEntrancePose()
+    val pitchPx = geometry.pitchPx
+    return when (entrance) {
+        StackEntrance.Slide -> StackEntrancePose(offset = -OFFSCREEN_FRACTION)
+        StackEntrance.Unfold -> StackEntrancePose(lenFrac = 0f)
+        StackEntrance.Drop -> StackEntrancePose(riseY = -pitchPx * DROP_START_MULTIPLIER)
+        StackEntrance.Cascade, StackEntrance.Unroll, StackEntrance.Tumble -> StackEntrancePose(
+            riseY = pitchPx,
+            turn = if (row % 2 == 0) -CASCADE_TURN_DEG else CASCADE_TURN_DEG,
+            alpha = 0f
+        )
+        StackEntrance.Deal -> StackEntrancePose(
+            offset = DEAL_START_X_FRACTION,
+            riseY = pitchPx * DEAL_START_Y_MULTIPLIER,
+            tilt = DEAL_TILT_DEG
+        )
+        StackEntrance.Split -> StackEntrancePose(
+            offset = -OFFSCREEN_FRACTION,
+            riseY = pitchPx * row,
+            lenFrac = HOST_WIDTH / geometry.restWidthFraction
+        )
+        StackEntrance.Telescope ->
+            if (row == 0) {
+                StackEntrancePose(offset = -OFFSCREEN_FRACTION)
+            } else {
+                StackEntrancePose(riseY = pitchPx * row, alpha = 0f)
+            }
+        StackEntrance.Rally -> StackEntrancePose(offset = if (row % 2 == 0) -OFFSCREEN_FRACTION else OFFSCREEN_FRACTION)
+        StackEntrance.Extend -> extendPose(row)
+    }
+}
+
+// Split out of initialPoseFor's own `when` to keep that function's cyclomatic complexity under
+// detekt's ceiling. The anchor row (0) starts already most of the way to its resting width - see
+// playExtend's own doc comment for why only row 0 is special-cased here.
+private fun extendPose(row: Int) = StackEntrancePose(lenFrac = if (row == 0) EXTEND_ANCHOR_START_FRACTION else 0f)
+
+private class StackEntranceMotion(pose: StackEntrancePose) {
+    // Fraction of the pill's own width - see StackPill's own comment on why offsetByFractionOfParent
+    // makes that true, not full-screen fraction.
+    val offset = Animatable(pose.offset)
+    val riseY = Animatable(pose.riseY) // px, added to the pill's resting row lift
+    val lenFrac = Animatable(pose.lenFrac) // fraction of the pill's own resting width
+    val turn = Animatable(pose.turn) // degrees
+    val tilt = Animatable(pose.tilt) // degrees
+    val alpha = Animatable(pose.alpha) // 0..1, see StackEntrancePose's own doc comment
+
+    /**
+     * The exit never varies - always the same sweep left, whichever entrance brought this pill
+     * in - so this is also where a pill leaving mid-entrance (a host tapped again before a slow
+     * entrance like Drop's wobble has settled) gets reset: a stray riseY/turn/tilt left over from
+     * the interrupted entrance would otherwise leave the pill visibly off its row while it sweeps
+     * away. (Folded into one function rather than a separate resetToRest() - and, below, its own
+     * play() dispatch inlined here too rather than a separate function - to keep this class's own
+     * function count under detekt's TooManyFunctions ceiling.)
+     */
+    suspend fun enterOrLeave(
+        entering: Boolean,
+        entrance: StackEntrance,
+        leaveTarget: Float,
+        geometry: StackRowGeometry,
+        sway: Animatable<Float, AnimationVector1D>
+    ) {
+        if (!entering) {
+            riseY.snapTo(0f)
+            lenFrac.snapTo(1f)
+            turn.snapTo(0f)
+            tilt.snapTo(0f)
+            alpha.snapTo(1f)
+            sway.snapTo(0f)
+            offset.animateTo(leaveTarget, tween(H2g2Motion.SLIDE_MS, easing = LinearEasing))
+            return
+        }
+        // Not destructured (detekt caps that at 3 components) - read straight off the bundle.
+        // Folded into enterOrLeave rather than its own play() (as this once was), to keep this
+        // class's own function count under detekt's TooManyFunctions ceiling.
+        val row = geometry.row
+        val rowCount = geometry.rowCount
+        val pitchPx = geometry.pitchPx
+        val restWidthFraction = geometry.restWidthFraction
+        when (entrance) {
+            StackEntrance.Slide -> playSlide(row, rowCount)
+            StackEntrance.Unfold -> playUnfold(row, rowCount)
+            StackEntrance.Drop -> playDrop(pitchPx)
+            StackEntrance.Cascade -> playCascade(row, rowCount, pitchPx)
+            StackEntrance.Deal -> playDeal(row, rowCount, pitchPx)
+            StackEntrance.Split -> playSplit(row, pitchPx, restWidthFraction)
+            StackEntrance.Telescope -> playTelescope(row, rowCount, pitchPx)
+            StackEntrance.Rally -> playRally(row)
+            StackEntrance.Extend -> playExtend(row, rowCount)
+            // Unroll and Tumble share playCascade's own mechanic at a shorter stagger - they
+            // differ only in which edge they hinge on, a StackPillVisual/TransformOrigin concern.
+            StackEntrance.Unroll, StackEntrance.Tumble ->
+                playCascade(row, rowCount, pitchPx, SWING_WAVE_STAGGER_FRACTION)
+        }
+    }
+
+    private suspend fun playSlide(row: Int, rowCount: Int) {
+        val slide = H2g2Motion.SLIDE_MS
+        offset.snapTo(-OFFSCREEN_FRACTION)
+        if (row == rowCount - 1) {
+            // The top row alone leaves late and overshoots, correcting once it has landed - the
+            // one piece of character in an otherwise rigid, one-clock arrival (Amendment 7: no
+            // per-row stagger here - that belongs to Cascade).
+            offset.animateTo(0f, keyframes {
+                durationMillis = slide + SLIDE_CORRECT_MS
+                -OFFSCREEN_FRACTION at 0 using LinearEasing
+                SLIDE_OVERSHOOT_FRACTION at slide using LinearEasing
+                0f at slide + SLIDE_CORRECT_MS
+            })
+        } else {
+            offset.animateTo(0f, tween(slide, easing = LinearEasing))
+        }
+    }
+
+    private suspend fun playUnfold(row: Int, rowCount: Int) {
+        // Length only, so nothing wobbles. `offset` stays 0 (its resting value) the whole time -
+        // the pill is anchored at its own LEFT edge (the end that bleeds offscreen in the real
+        // menu) via offsetByFractionOfParent(0), and lenFrac scales the width from that fixed
+        // left edge, so the right tip is what advances. Anchoring at the right tip instead would
+        // make the tip the fixed point and the offscreen edge would travel - invisible, reading
+        // as nothing happening.
+        lenFrac.snapTo(0f)
+        delay(scaledDelayMs(staggerDelayMs(row, rowCount, UNFOLD_STAGGER_MS)))
+        lenFrac.animateTo(1f, tween(H2g2Motion.UNFOLD_MS, easing = H2g2Motion.Ease))
+    }
+
+    private suspend fun playDrop(pitchPx: Float) {
+        val slide = H2g2Motion.SLIDE_MS
+        riseY.snapTo(-pitchPx * DROP_START_MULTIPLIER)
+        // Stops short by 4% of a row pitch; the wobble (StackPill's own sway) resolves the
+        // remainder - the one entrance where the sway is load-bearing rather than decorative.
+        riseY.animateTo(pitchPx * DROP_SHORT_FRACTION, tween(slide, easing = LinearEasing))
+        riseY.animateTo(0f, tween(DROP_SETTLE_MS, easing = LinearEasing))
+    }
+
+    // Shared by Cascade and Unroll/Tumble: the exact same hinge - full turn, lift folded into the
+    // final tenth - differing only in [staggerFraction] of the swing's own duration. Cascade's own
+    // 1f makes each row wait for the WHOLE previous swing (strictly sequential, one row finishes
+    // before the next begins); Unroll/Tumble's smaller fraction (see SWING_WAVE_STAGGER_FRACTION)
+    // starts the next row before the previous one lands, reading as a continuous wave instead of a
+    // one-at-a-time hand-off.
+    private suspend fun playCascade(row: Int, rowCount: Int, pitchPx: Float, staggerFraction: Float = 1f) {
+        val duration = stackInterval(H2g2Motion.SWING_MS, rowCount)
+        val stagger = (duration * staggerFraction).toInt()
+        riseY.snapTo(pitchPx) // stacked on the row below
+        turn.snapTo(if (row % 2 == 0) -CASCADE_TURN_DEG else CASCADE_TURN_DEG)
+        alpha.snapTo(0f) // genuinely hidden - see StackEntrancePose's own doc comment
+        delay(scaledDelayMs(staggerDelayMs(row, rowCount, stagger)))
+        coroutineScope {
+            launch { turn.animateTo(0f, tween(duration, easing = LinearEasing)) }
+            launch {
+                // Lift folded into the final tenth, so turn and lift land on one frame.
+                riseY.animateTo(0f, keyframes {
+                    durationMillis = duration
+                    pitchPx at 0 using LinearEasing
+                    pitchPx at (duration * H2g2Motion.LIFT_FRACTION).toInt() using LinearEasing
+                    0f at duration
+                })
+            }
+            launch {
+                // Fades in as soon as the turn actually starts unwinding, not held until the
+                // final-tenth lift - holding it that long hid the swing itself, the one thing
+                // this entrance exists to show, and left only a pop at the very end to look at.
+                alpha.animateTo(1f, tween((duration * H2g2Motion.REVEAL_FRACTION).toInt(), easing = LinearEasing))
+            }
+        }
+    }
+
+    private suspend fun playDeal(row: Int, rowCount: Int, pitchPx: Float) {
+        val step = stackInterval(DEAL_STEP_MS, rowCount)
+        offset.snapTo(DEAL_START_X_FRACTION)
+        riseY.snapTo(pitchPx * DEAL_START_Y_MULTIPLIER)
+        tilt.snapTo(DEAL_TILT_DEG)
+        delay(scaledDelayMs(staggerDelayMs(row, rowCount, step)))
+        coroutineScope {
+            launch { offset.animateTo(0f, tween(step * 2, easing = LinearEasing)) }
+            launch { riseY.animateTo(0f, tween(step * 2, easing = LinearEasing)) }
+            launch { tilt.animateTo(0f, tween(step * 2, easing = LinearEasing)) }
+        }
+    }
+
+    private suspend fun playSplit(row: Int, pitchPx: Float, restWidthFraction: Float) {
+        // Enters as ONE pill at host width on row 0, then divides upward.
+        val slide = H2g2Motion.SLIDE_MS
+        offset.snapTo(-OFFSCREEN_FRACTION)
+        riseY.snapTo(pitchPx * row)
+        lenFrac.snapTo(HOST_WIDTH / restWidthFraction)
+        offset.animateTo(0f, tween(slide, easing = LinearEasing))
+        coroutineScope {
+            launch { riseY.animateTo(0f, tween(slide, easing = LinearEasing)) }
+            launch { lenFrac.animateTo(1f, tween(slide, easing = LinearEasing)) }
+        }
+    }
+
+    private suspend fun playTelescope(row: Int, rowCount: Int, pitchPx: Float) {
+        val slide = H2g2Motion.SLIDE_MS
+        val step = stackInterval(TELESCOPE_STEP_MS, rowCount)
+        if (row == 0) {
+            offset.snapTo(-OFFSCREEN_FRACTION)
+            offset.animateTo(0f, tween(slide, easing = LinearEasing))
+        } else {
+            // Drawn out from behind the row below, already at final length.
+            riseY.snapTo(pitchPx * row)
+            alpha.snapTo(0f) // genuinely hidden - see StackEntrancePose's own doc comment
+            delay(scaledDelayMs(slide + staggerDelayMs(row - 1, rowCount - 1, step)))
+            coroutineScope {
+                launch { riseY.animateTo(0f, tween(step, easing = LinearEasing)) }
+                launch { alpha.animateTo(1f, tween(step, easing = LinearEasing)) }
+            }
+        }
+    }
+
+    private suspend fun playRally(row: Int) {
+        // Alternate sides, one clock, no stagger. Struck from both directions, so StackPill's
+        // own sway runs at double amplitude.
+        val slide = H2g2Motion.SLIDE_MS
+        offset.snapTo(if (row % 2 == 0) -OFFSCREEN_FRACTION else OFFSCREEN_FRACTION)
+        offset.animateTo(0f, tween(slide, easing = LinearEasing))
+    }
+
+    private suspend fun playExtend(row: Int, rowCount: Int) {
+        // Nothing here ever moves - only lenFrac. Row 0 (the anchor) is already most of the way
+        // to its resting width and finishes growing first; every row above it starts from zero
+        // and only begins once the anchor's own growth completes, staggered the same 26ms/row
+        // Unfold already uses - the anchor extends, then its siblings unfold alongside it.
+        if (row == 0) {
+            lenFrac.animateTo(1f, tween(H2g2Motion.UNFOLD_MS, easing = H2g2Motion.Ease))
+        } else {
+            delay(scaledDelayMs(H2g2Motion.UNFOLD_MS + staggerDelayMs(row - 1, rowCount - 1, UNFOLD_STAGGER_MS)))
+            lenFrac.animateTo(1f, tween(H2g2Motion.UNFOLD_MS, easing = H2g2Motion.Ease))
+        }
+    }
+}
+
+@Composable
+private fun HostPill(node: MenuNode, rowsBelow: Int, onClick: () -> Unit) {
+    val drop = remember { Animatable(-(ROW_PITCH.value * rowsBelow)) }
+    // It lands like it weighs something: the same pile-sway every shared-clock stack move gets
+    // (see PillWobble.kt), keyed to the drop rather than the slide since a host drop is its own
+    // clock, not the entrance's.
+    val sway = remember { Animatable(0f) }
+    LaunchedEffect(node.id) {
+        drop.animateTo(0f, tween(H2g2Motion.DROP_MS, easing = LinearEasing))
+    }
+    LaunchedEffect(node.id) {
+        sway.wobble(rowsBelow, H2g2Motion.DROP_MS)
+    }
+    Box(Modifier.fillMaxSize()) {
+        Pill(
+            label = node.label,
+            cap = node.cap,
+            hue = H2g2.hueOf(node.id),
+            selected = true,
+            touchTargetHeight = ROW_PITCH,
+            onClick = onClick,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .widthByRef(HOST_WIDTH)
+                .offsetByFractionOfParent(HOST_RIGHT_EDGE - 1f)
+                .absoluteBleed(OVERHANG)
+                .graphicsLayer {
+                    transformOrigin = TransformOrigin(1f, ORIGIN_CENTER_Y) // the visible right end
+                    rotationZ = sway.value
+                    translationY = drop.value * density
+                }
+        )
+    }
+}
+
+/*
+ * A single band of sibling pills fanning up from BAND_BASE_ROW, exactly like the root stack
+ * fans up from the host. Tapping a pill hands it off to the trail below: its siblings play the
+ * same "leaving" motion the root stack uses when a host is chosen, and the picked pill itself
+ * drops to the shared bottom row and grows a little as it settles there - the same "become the
+ * anchor" motion HostPill already plays - instead of sliding away like an unpicked sibling.
+ * H2g2PillMenu swaps this whole band for a fresh one over the pick's own children once that
+ * hand-off finishes, so drilling deeper always looks like this exact same band, never a taller
+ * one.
+ */
+@Composable
+private fun ChildBand(
+    children: List<MenuNode>,
+    onPick: (MenuNode) -> Unit
+) {
+    // No key needed here - the call site already wraps this whole band in key(anchor.id), so a
+    // new anchor tears down and recreates this state automatically - including this roll, so
+    // drilling into a different category always has a chance at a fresh entrance, the same way
+    // the root stack rerolls on every arrival. See StackEntrance.rollForChildBand's own doc
+    // comment for why this pulls from a smaller pool than the root stack's own roll().
+    val entrance = remember { StackEntrance.rollForChildBand() }
+    var selected by remember { mutableStateOf<String?>(null) }
+    val stackScroll = rememberStackScroll(
+        rowMin = BAND_BASE_ROW,
+        rowMax = (BAND_BASE_ROW + children.size - 1).coerceAtLeast(BAND_BASE_ROW)
+    )
+
+    // Pills that first appear after the band's arrival has finished (scrolled into the composed
+    // window later) skip the entrance and simply sit at rest - their stagger slot is long past.
+    var arrived by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(scaledDelayMs(CHILD_ARRIVAL_WINDOW_MS))
+        arrived = true
+    }
+    val density = LocalDensity.current
+    val pitchPx = with(density) { ROW_PITCH.toPx() }
+
+    BoxWithConstraints(Modifier.fillMaxSize().then(stackScroll.modifier)) {
+        // A discovered category (a PATH scan) can hold hundreds of entries, and every pill carries
+        // nine Animatables and two effects. Compose only the rows on screen plus a few either side;
+        // the scroll bounds above still use the full count, so scrolling reaches them all. A band
+        // small enough to fit anyway composes everything, exactly as before.
+        val windowed = children.size > CHILD_EAGER_LIMIT && pitchPx > 0f
+        val firstRow = if (windowed) (stackScroll.offsetPx / pitchPx).toInt() - 1 - CHILD_WINDOW_BUFFER_ROWS else 0
+        val lastRow = if (windowed) {
+            ((with(density) { maxHeight.toPx() } + stackScroll.offsetPx) / pitchPx).toInt() + 1 + CHILD_WINDOW_BUFFER_ROWS
+        } else {
+            Int.MAX_VALUE
+        }
+        children.forEachIndexed { idx, child ->
+            val isSelected = child.id == selected
+            if (!windowed || isSelected || (BAND_BASE_ROW + idx) in firstRow..lastRow) {
+                key(child.id) {
+                    ChildPill(
+                        node = child,
+                        position = ChildPillPosition(idx, children.size, stackScroll.offsetPx),
+                        entrance = entrance,
+                        animateIn = !arrived,
+                        phase = ChildPillPhase(
+                            leaving = selected != null && !isSelected,
+                            droppingOut = isSelected,
+                            alignedRow = stackScroll.alignedRow
+                        ),
+                        onClick = {
+                            if (selected == null) {
+                                selected = child.id
+                                onPick(child)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+// How long after a band appears its entrance choreography can still be running: the host hand-off
+// (DROP_MS), the stagger budget, and the longest single move (UNFOLD_MS) with slack.
+private const val CHILD_ARRIVAL_WINDOW_MS = 2000
+// Bands up to this many children compose every pill; bigger ones compose a window of rows.
+private const val CHILD_EAGER_LIMIT = 16
+private const val CHILD_WINDOW_BUFFER_ROWS = 3
+
+/** A [ChildEntranceMotion]'s six Animatables, as plain values - see [initialChildPoseFor]. Unlike
+ *  [StackEntrancePose], [lift] is the pill's absolute translationY (this band's own BAND_BASE_ROW
+ *  offset baked in), not a rest-position-plus-delta split: [ChildPill]'s own droppingOut hand-off
+ *  moves the WHOLE lift value down to row 0 (becoming the next host), which a fixed "resting row"
+ *  the way [StackPillContext.restLift] has one can't express - there is no separate rest value to
+ *  hold steady while only a delta animates. */
+private data class ChildEntrancePose(
+    val offset: Float = 0f,
+    val lift: Float,
+    val lenFrac: Float = 1f,
+    val turn: Float = 0f,
+    val tilt: Float = 0f,
+    val alpha: Float = 1f
+)
+
+/**
+ * The pose a child band's own rolled [StackEntrance] snaps to before animating - the child-band
+ * equivalent of [initialPoseFor], seeding [ChildEntranceMotion] at construction for the same
+ * no-flash reason that one exists for. [absoluteRow] already includes [BAND_BASE_ROW]; [restLift]
+ * is where this pill sits once fully settled, the baseline every branch below displaces from.
+ */
+private fun initialChildPoseFor(entrance: StackEntrance, localIndex: Int, absoluteRow: Int, pitchPx: Float): ChildEntrancePose {
+    val restLift = -pitchPx * absoluteRow
+    return when (entrance) {
+        StackEntrance.Slide -> ChildEntrancePose(offset = -OFFSCREEN_FRACTION, lift = restLift)
+        StackEntrance.Unfold -> ChildEntrancePose(lenFrac = 0f, lift = restLift)
+        StackEntrance.Drop -> ChildEntrancePose(lift = restLift - pitchPx * DROP_START_MULTIPLIER)
+        StackEntrance.Cascade, StackEntrance.Unroll, StackEntrance.Tumble -> ChildEntrancePose(
+            lift = -pitchPx * (absoluteRow - 1).coerceAtLeast(BAND_BASE_ROW),
+            turn = if (localIndex % 2 == 0) -CASCADE_TURN_DEG else CASCADE_TURN_DEG,
+            alpha = 0f
+        )
+        StackEntrance.Deal -> ChildEntrancePose(
+            offset = DEAL_START_X_FRACTION,
+            lift = restLift + pitchPx * DEAL_START_Y_MULTIPLIER,
+            tilt = DEAL_TILT_DEG
+        )
+        // Root's Split starts as one pill at host width; a band has no separate host-width pill
+        // to borrow, so it starts stacked at the band's own bottom row instead - visually the
+        // same "starts compressed at one spot, divides upward" shape.
+        StackEntrance.Split -> ChildEntrancePose(offset = -OFFSCREEN_FRACTION, lift = -pitchPx * BAND_BASE_ROW)
+        StackEntrance.Telescope ->
+            if (localIndex == 0) {
+                ChildEntrancePose(offset = -OFFSCREEN_FRACTION, lift = restLift)
+            } else {
+                ChildEntrancePose(lift = -pitchPx * (absoluteRow - 1).coerceAtLeast(BAND_BASE_ROW), alpha = 0f)
+            }
+        StackEntrance.Rally -> ChildEntrancePose(
+            offset = if (localIndex % 2 == 0) -OFFSCREEN_FRACTION else OFFSCREEN_FRACTION,
+            lift = restLift
+        )
+        StackEntrance.Extend -> ChildEntrancePose(
+            lenFrac = if (localIndex == 0) EXTEND_ANCHOR_START_FRACTION else 0f,
+            lift = restLift
+        )
+    }
+}
+
+/** The child-band equivalent of [StackEntranceMotion] - see [ChildEntrancePose]'s own doc comment
+ *  for why this doesn't just reuse that class directly. */
+private class ChildEntranceMotion(pose: ChildEntrancePose) {
+    val offset = Animatable(pose.offset)
+    val lift = Animatable(pose.lift)
+    val lenFrac = Animatable(pose.lenFrac)
+    val turn = Animatable(pose.turn)
+    val tilt = Animatable(pose.tilt)
+    val alpha = Animatable(pose.alpha)
+
+    suspend fun play(entrance: StackEntrance, localIndex: Int, rowCount: Int, pitchPx: Float, absoluteRow: Int) {
+        val restLift = -pitchPx * absoluteRow
+        when (entrance) {
+            StackEntrance.Slide -> playSlide(restLift)
+            StackEntrance.Unfold -> playUnfold(localIndex, rowCount, restLift)
+            StackEntrance.Drop -> playDrop(restLift, pitchPx)
+            StackEntrance.Cascade -> playCascade(localIndex, rowCount, absoluteRow, pitchPx)
+            // Unroll/Tumble aren't in a child band's own roll pool (see
+            // StackEntrance.rollForChildBand's doc comment) - handled here anyway so this `when`
+            // stays exhaustive over the whole enum rather than an arbitrary subset of it.
+            StackEntrance.Unroll, StackEntrance.Tumble -> playCascade(localIndex, rowCount, absoluteRow, pitchPx)
+            StackEntrance.Deal -> playDeal(localIndex, rowCount, restLift)
+            StackEntrance.Split -> playSplit(restLift)
+            StackEntrance.Telescope -> playTelescope(localIndex, rowCount, restLift)
+            StackEntrance.Rally -> playRally(restLift)
+            StackEntrance.Extend -> playExtend(localIndex, rowCount, restLift)
+        }
+    }
+
+    private suspend fun playSlide(restLift: Float) {
+        lift.snapTo(restLift)
+        offset.animateTo(0f, tween(H2g2Motion.SLIDE_MS, easing = LinearEasing))
+    }
+
+    private suspend fun playUnfold(localIndex: Int, rowCount: Int, restLift: Float) {
+        lift.snapTo(restLift)
+        delay(scaledDelayMs(staggerDelayMs(localIndex, rowCount, UNFOLD_STAGGER_MS)))
+        lenFrac.animateTo(1f, tween(H2g2Motion.UNFOLD_MS, easing = H2g2Motion.Ease))
+    }
+
+    private suspend fun playDrop(restLift: Float, pitchPx: Float) {
+        lift.animateTo(restLift + pitchPx * DROP_SHORT_FRACTION, tween(H2g2Motion.SLIDE_MS, easing = LinearEasing))
+        lift.animateTo(restLift, tween(DROP_SETTLE_MS, easing = LinearEasing))
+    }
+
+    private suspend fun playCascade(localIndex: Int, rowCount: Int, absoluteRow: Int, pitchPx: Float) {
+        delay(scaledDelayMs(staggerDelayMs(localIndex, rowCount, H2g2Motion.SWING_MS)))
+        coroutineScope {
+            launch { turn.animateTo(0f, tween(H2g2Motion.SWING_MS, easing = LinearEasing)) }
+            launch {
+                // Lift folded into the final tenth, so turn and lift land on one frame.
+                lift.animateTo(-pitchPx * absoluteRow, keyframes {
+                    durationMillis = H2g2Motion.SWING_MS
+                    (-pitchPx * (absoluteRow - 1).coerceAtLeast(BAND_BASE_ROW)) at
+                        (H2g2Motion.SWING_MS * H2g2Motion.LIFT_FRACTION).toInt() using LinearEasing
+                })
+            }
+            launch {
+                // Fades in as soon as the turn actually starts unwinding - see the root stack's
+                // own playCascade for why this isn't held until the final-tenth lift instead.
+                alpha.animateTo(1f, tween((H2g2Motion.SWING_MS * H2g2Motion.REVEAL_FRACTION).toInt(), easing = LinearEasing))
+            }
+        }
+    }
+
+    private suspend fun playDeal(localIndex: Int, rowCount: Int, restLift: Float) {
+        val step = stackInterval(DEAL_STEP_MS, rowCount)
+        delay(scaledDelayMs(staggerDelayMs(localIndex, rowCount, step)))
+        coroutineScope {
+            launch { offset.animateTo(0f, tween(step * 2, easing = LinearEasing)) }
+            launch { lift.animateTo(restLift, tween(step * 2, easing = LinearEasing)) }
+            launch { tilt.animateTo(0f, tween(step * 2, easing = LinearEasing)) }
+        }
+    }
+
+    private suspend fun playSplit(restLift: Float) {
+        val slide = H2g2Motion.SLIDE_MS
+        coroutineScope {
+            launch { offset.animateTo(0f, tween(slide, easing = LinearEasing)) }
+            launch { lift.animateTo(restLift, tween(slide, easing = LinearEasing)) }
+        }
+    }
+
+    private suspend fun playTelescope(localIndex: Int, rowCount: Int, restLift: Float) {
+        val slide = H2g2Motion.SLIDE_MS
+        val step = stackInterval(TELESCOPE_STEP_MS, rowCount)
+        if (localIndex == 0) {
+            offset.animateTo(0f, tween(slide, easing = LinearEasing))
+        } else {
+            delay(scaledDelayMs(slide + staggerDelayMs(localIndex - 1, rowCount - 1, step)))
+            coroutineScope {
+                launch { lift.animateTo(restLift, tween(step, easing = LinearEasing)) }
+                launch { alpha.animateTo(1f, tween(step, easing = LinearEasing)) }
+            }
+        }
+    }
+
+    private suspend fun playRally(restLift: Float) {
+        lift.snapTo(restLift)
+        offset.animateTo(0f, tween(H2g2Motion.SLIDE_MS, easing = LinearEasing))
+    }
+
+    private suspend fun playExtend(localIndex: Int, rowCount: Int, restLift: Float) {
+        lift.snapTo(restLift)
+        if (localIndex == 0) {
+            lenFrac.animateTo(1f, tween(H2g2Motion.UNFOLD_MS, easing = H2g2Motion.Ease))
+        } else {
+            delay(scaledDelayMs(H2g2Motion.UNFOLD_MS + staggerDelayMs(localIndex - 1, rowCount - 1, UNFOLD_STAGGER_MS)))
+            lenFrac.animateTo(1f, tween(H2g2Motion.UNFOLD_MS, easing = H2g2Motion.Ease))
+        }
+    }
+}
+
+/** [ChildPill]'s own position within its band, bundled to stay under detekt's LongParameterList
+ *  ceiling - see [StackPillPosition]'s equivalent role for the root stack. */
+private data class ChildPillPosition(val localIndex: Int, val rowCount: Int, val scrollOffsetPx: Float)
+
+/** The three booleans/row [ChildPill] needs to know where it sits in the pick hand-off - the
+ *  child-band equivalent of [StackPillPhase]. */
+private data class ChildPillPhase(val leaving: Boolean, val droppingOut: Boolean, val alignedRow: Int)
+
+@Composable
+private fun ChildPill(
+    node: MenuNode,
+    position: ChildPillPosition,
+    entrance: StackEntrance,
+    animateIn: Boolean,
+    phase: ChildPillPhase,
+    onClick: () -> Unit
+) {
+    val (localIndex, rowCount, scrollOffsetPx) = position
+    // Not destructured (detekt caps that at 3 components) - read straight off the bundle.
+    val leaving = phase.leaving
+    val droppingOut = phase.droppingOut
+    val alignedRow = phase.alignedRow
+
+    val density = LocalDensity.current
+    val pitchPx = with(density) { ROW_PITCH.toPx() }
+
+    val absoluteRow = BAND_BASE_ROW + localIndex
+    val aligned = absoluteRow == alignedRow && !leaving && !droppingOut
+
+    // Decided once, when this pill is first composed: a pill that arrives with its band plays the
+    // rolled entrance; one that scrolls into the composed window later, or any pill while
+    // animations are off, is simply placed at rest.
+    val reducedMotion = rememberReducedMotion()
+    val playEntrance = remember(node.id) { animateIn && !reducedMotion }
+    val motion = remember(node.id) {
+        ChildEntranceMotion(
+            if (playEntrance) {
+                initialChildPoseFor(entrance, localIndex, absoluteRow, pitchPx)
+            } else {
+                ChildEntrancePose(lift = -pitchPx * absoluteRow)
+            }
+        )
+    }
+    val leaveOffset = remember(node.id) { Animatable(0f) }
+    val scale = remember(node.id) { Animatable(1f) }
+    // Only while leaving - a single child turns/grows alone, not with a pile, so it has nothing
+    // to sway against; the band's siblings leaving together are a pile again. See PillWobble.kt.
+    val sway = remember(node.id) { Animatable(0f) }
+
+    // Keyed on localIndex too, not just node.id: a band re-sort or a sibling filtered out changes
+    // every subsequent localIndex without changing any id, so the delay computed from it would go
+    // stale silently - the entrance would keep the old ordering, arriving in a sequence that no
+    // longer matches where the pills actually sit.
+    LaunchedEffect(node.id, localIndex) {
+        if (playEntrance) {
+            delay(scaledDelayMs(H2g2Motion.DROP_MS))
+            motion.play(entrance, localIndex, rowCount, pitchPx, absoluteRow)
+        } else {
+            motion.lift.snapTo(-pitchPx * absoluteRow)
+        }
+    }
+
+    // A newly-chosen pill drops to the shared bottom row and grows a little as it settles there;
+    // its siblings leave exactly like the root stack's unselected pills do.
+    LaunchedEffect(leaving, droppingOut) {
+        if (droppingOut) {
+            // A tap can land while this pill is still mid-entrance (still hidden/offset/turned/
+            // narrowed) - becoming the host is its own reveal, so nothing here should stay
+            // parked in an entrance-only pose through it.
+            launch { motion.alpha.animateTo(1f, tween(H2g2Motion.DROP_MS, easing = LinearEasing)) }
+            launch { motion.turn.animateTo(0f, tween(H2g2Motion.DROP_MS, easing = LinearEasing)) }
+            launch { motion.lift.animateTo(0f, tween(H2g2Motion.DROP_MS, easing = LinearEasing)) }
+            launch { motion.offset.animateTo(0f, tween(H2g2Motion.DROP_MS, easing = LinearEasing)) }
+            launch { motion.lenFrac.animateTo(1f, tween(H2g2Motion.DROP_MS, easing = LinearEasing)) }
+            launch { motion.tilt.animateTo(0f, tween(H2g2Motion.DROP_MS, easing = LinearEasing)) }
+            launch {
+                scale.animateTo(1.15f, tween(H2g2Motion.DROP_MS * 2 / 3, easing = LinearEasing))
+                scale.animateTo(1f, tween(H2g2Motion.DROP_MS / 3, easing = LinearEasing))
+            }
+        } else if (leaving) {
+            launch { leaveOffset.animateTo(-1.7f, tween(H2g2Motion.SLIDE_MS, easing = LinearEasing)) }
+            launch { sway.wobble(absoluteRow, H2g2Motion.SLIDE_MS) }
+        }
+    }
+
+    ChildPillVisual(
+        ChildPillVisualContext(node, localIndex, entrance, aligned, droppingOut, absoluteRow, scrollOffsetPx),
+        ChildPillMotion(motion, leaveOffset, scale, sway),
+        onClick
+    )
+}
+
+/** Everything [ChildPillVisual] needs besides the Animatable bundles - see its own doc. */
+private data class ChildPillVisualContext(
+    val node: MenuNode,
+    val localIndex: Int,
+    val entrance: StackEntrance,
+    val aligned: Boolean,
+    val droppingOut: Boolean,
+    val absoluteRow: Int,
+    val scrollOffsetPx: Float
+)
+
+/** Every Animatable-holder [ChildPillVisual] paints from, bundled to stay under detekt's
+ *  LongParameterList ceiling - [entrance] is the entrance's own turn/lift/offset/lenFrac/tilt/
+ *  alpha, [leaveOffset]/[scale]/[sway] are the separate leaving/dropping-out flourishes. */
+private class ChildPillMotion(
+    val entrance: ChildEntranceMotion,
+    val leaveOffset: Animatable<Float, AnimationVector1D>,
+    val scale: Animatable<Float, AnimationVector1D>,
+    val sway: Animatable<Float, AnimationVector1D>
+)
+
+@Composable
+private fun ChildPillVisual(ctx: ChildPillVisualContext, motion: ChildPillMotion, onClick: () -> Unit) {
+    Box(Modifier.fillMaxSize().zIndex(if (ctx.droppingOut) 100f else 50f - ctx.absoluteRow)) {
+        Pill(
+            label = ctx.node.label,
+            cap = ctx.node.cap,
+            // Each pill in the band its own hue, the same way StackPill's root stack already
+            // varies by the pill's own id rather than sharing one color across every row -
+            // hueOwner is still threaded through for TrailCrumb, where a shared color is the
+            // point (the trail reads as one continuous path off the host), just not here.
+            hue = H2g2.hueOf(ctx.node.id),
+            // Same "ink means primed" treatment StackPill gives its own row-0-aligned pill.
+            selected = ctx.aligned,
+            touchTargetHeight = ROW_PITCH,
+            onClick = onClick,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .widthByRef(childWidthFraction(ctx.localIndex) * motion.entrance.lenFrac.value)
+                .offsetByFractionOfParent(CHILD_LEFT + motion.leaveOffset.value + motion.entrance.offset.value)
+                .graphicsLayer {
+                    transformOrigin = when (ctx.entrance) {
+                        StackEntrance.Deal -> TransformOrigin(1f, 1f) // hinged bottom-right
+                        StackEntrance.Cascade, StackEntrance.Unroll ->
+                            if (ctx.localIndex % 2 == 0) TransformOrigin(0f, 0.5f) else TransformOrigin(1f, 0.5f)
+                        StackEntrance.Tumble ->
+                            if (ctx.localIndex % 2 == 0) TransformOrigin(0.5f, 0f) else TransformOrigin(0.5f, 1f)
+                        else -> TransformOrigin(1f, 0.5f)
+                    }
+                    rotationZ = motion.entrance.turn.value + motion.entrance.tilt.value + motion.sway.value
+                    translationY = motion.entrance.lift.value + ctx.scrollOffsetPx
+                    scaleX = motion.scale.value
+                    scaleY = motion.scale.value
+                    alpha = motion.entrance.alpha.value
+                }
+        )
+    }
+}
+
+/*
+ * The chain of picks made below the root host, settled into one row alongside it. Each entry
+ * only ever animates once, on the hand-off from ChildPill's own drop-and-grow (which finishes
+ * before H2g2PillMenu swaps the band in for this), so it reads as one continuous motion rather than
+ * a second animation stacked on the first. Tapping any crumb pops the trail back to just before
+ * it, re-opening that pill's own band of choices.
+ */
+@Composable
+private fun TrailRow(
+    trail: List<MenuNode>,
+    hueOwner: String,
+    onTapCrumb: (Int) -> Unit,
+    onCrumbPositioned: (id: String, rect: Rect) -> Unit = { _, _ -> }
+) {
+    if (trail.isEmpty()) return
+    // With 13sp labels a long trail no longer fits in the space right of the host, so the row
+    // scrolls sideways (kept at its end, where the newest crumb is) instead of running off-screen.
+    val trailScroll = rememberScrollState()
+    LaunchedEffect(trailScroll.maxValue) { trailScroll.scrollTo(trailScroll.maxValue) }
+    Box(Modifier.fillMaxSize()) {
+        Row(
+            Modifier
+                .align(Alignment.BottomStart)
+                .insetStartByRef(TRAIL_LEFT_OF_FULL)
+                .horizontalScroll(trailScroll),
+            // Negative spacing overlaps each crumb into the one after it, like a fanned hand of
+            // cards - the same shingled read as the rest of this menu's overlaps/bleeds. A plain
+            // Row draws later children over earlier ones, which would read backwards for a trail
+            // (the newest pick burying the path that led to it); TrailCrumb's own zIndex below
+            // reverses that, so each crumb draws on top of every crumb that comes after it -
+            // earlier picks stay on top, the way an actual stack of cards fans out.
+            horizontalArrangement = Arrangement.spacedBy(TRAIL_OVERLAP)
+        ) {
+            trail.forEachIndexed { i, node ->
+                key(node.id) {
+                    TrailCrumb(
+                        node = node,
+                        hueOwner = hueOwner,
+                        zIndex = (trail.size - i).toFloat(),
+                        onClick = { onTapCrumb(i) },
+                        onPositioned = { onCrumbPositioned(node.id, it) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrailCrumb(
+    node: MenuNode,
+    hueOwner: String,
+    zIndex: Float,
+    onClick: () -> Unit,
+    onPositioned: (Rect) -> Unit = {}
+) {
+    Pill(
+        label = node.label,
+        cap = node.cap,
+        hue = H2g2.hueOf(hueOwner),
+        selected = false,
+        // Every other pill in the menu gets its width from fillMaxWidth against a fraction of
+        // the screen and stretches its capsule to fill it; a Row of these can't do that (they'd
+        // all fight for the full row), so this is the one pill sized by content alone - give it a
+        // floor so a short label like "ls" doesn't shrink-wrap into something visibly smaller
+        // than everything around it. Anchored BottomStart so a short crumb's floor padding falls
+        // after its label, keeping the shingled trail's overlap landing on real crumb content
+        // instead of an empty margin ahead of it.
+        anchor = Alignment.CenterStart,
+        stretch = false,
+        onClick = onClick,
+        // Guarantees real trailing space behind every crumb's own label/cap, long or short - see
+        // extraEndPadding's own doc comment on Pill() for why a floor-width crumb's padding alone
+        // isn't enough once a label's content outgrows that floor.
+        extraEndPadding = -TRAIL_OVERLAP,
+        modifier = Modifier
+            .defaultMinSize(minWidth = 56.dp)
+            .zIndex(zIndex)
+            .onGloballyPositioned { onPositioned(it.boundsInRoot()) }
+    )
+}
+
+// Pill text colours, computed once: contrastingText() is two WCAG ratios and a Pill recomposes on
+// every frame of an unfold.
+private val HUE_TEXT: List<Color> by lazy { H2g2.hues.map { it.contrastingText() } }
+private val CAP_TEXT: List<Color> by lazy { H2g2.caps.map { it.contrastingText() } }
+
+private val PILL_CAP_HEIGHT = 20.dp
+private val PILL_CAP_MIN_WIDTH = 20.dp
+
+/**
+ * One pill: a [PillMetrics.Height] capsule with its label and optional end-cap anchored at the
+ * right, centred vertically inside a [touchTargetHeight] hit box. Label and cap sizes come from the
+ * `pill` / `pillCap` tokens of [currentH2g2Type]; text colour is whichever of Ink/White has the
+ * higher contrast against the fill. [onClick] (when given) is handled on the whole hit box, with
+ * the press indication clipped to the capsule rather than the rectangle.
+ */
+@Suppress("LongParameterList")
+@Composable
+internal fun Pill(
+    label: String,
+    cap: String?,
+    hue: Int,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    // Fires on a tap anywhere in the pill's hit box. Null for a pill whose caller handles input.
+    onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
+    // Which end of the hit box the capsule hugs. Centre-vertical so the 48dp target extends equally
+    // above and below the 32dp capsule. Right end for a stack pill, left for a trail crumb: the
+    // Start/End half is what DESIGN.md's "anchored by its right end" means for the stack, and keeps
+    // a crumb's 56dp floor-padding after its label instead of before it.
+    anchor: Alignment = Alignment.CenterEnd,
+    // True for every pill fanned out in a stack (StackPill/HostPill/ChildPill): the visible
+    // capsule fills [modifier]'s own width - the fraction-of-reference-width box described at
+    // widthByRef - instead of shrinking to the label, so a stack's row-to-row width variation
+    // actually shows up as the capsule's own bled-left length, per DESIGN.md rule 1. False only for
+    // TrailCrumb, the one pill sized by its own content.
+    stretch: Boolean = true,
+    // The hit box height. Every row-stacked pill passes ROW_PITCH, which is the same 48dp, so the
+    // hit boxes of consecutive rows tile without overlapping.
+    touchTargetHeight: Dp = PILL_TOUCH_TARGET,
+    // Zero for every pill except TrailCrumb, which passes -TRAIL_OVERLAP here: a crumb whose label
+    // outgrows the 56dp floor has no padding buffer, so the next crumb's overlap would land on its
+    // trailing glyphs. Padding the content out by the overlap amount guarantees real, opaque space
+    // back there for every crumb, long or short.
+    extraEndPadding: Dp = 0.dp
+) {
+    val type = currentH2g2Type()
+    // In a mirrored menu the stack's layer has turned this pill over; each piece of text turns
+    // itself back about its own centre, so it reads normally at the mirrored position.
+    val upright = Modifier.mirrored(LocalPillMenuPlacement.current)
+    val bg = if (selected) H2g2.ink else H2g2.hues[hue]
+    val capBg = if (selected) H2g2.yellow else H2g2.caps[hue]
+    // Selected is a fixed ink-bg/yellow-fg UI signal, not "text on an arbitrary background" - it
+    // keeps its own fixed pairing. Unselected sits on this pill's own hue/cap, which never rotates
+    // but spans light (amber, tan) to dark (violet, teal): the text is whichever of Ink/White
+    // measures better on that exact fill (see contrastingText), not a fixed White.
+    val fg = if (selected) H2g2.yellow else HUE_TEXT[hue]
+    val capFg = if (selected) H2g2.ink else CAP_TEXT[hue]
+    // Local copy so the semantics block below reads the parameter, not its own
+    // SemanticsPropertyReceiver.selected property of the same name.
+    val isSelected = selected
+    val interaction = remember { MutableInteractionSource() }
+
+    // [modifier] carries this pill's real geometry - width, offset / bleed, and the lift-and-scroll
+    // graphicsLayer. The click handler is applied after it, so it is hit-tested in the lifted,
+    // transformed position. The outer Box is [touchTargetHeight] tall while the Row painted inside
+    // is PILL_HEIGHT, centred: an invisible larger tap zone around a smaller visible element.
+    // Because a stack's rows are ROW_PITCH (== the hit box height) apart, no tap can land in two
+    // rows and none falls between them.
+    Box(
+        modifier
+            .defaultMinSize(minHeight = touchTargetHeight)
+            .then(
+                if (onClick != null) {
+                    // indication = null: the default ripple would paint the whole hit rectangle; the
+                    // capsule draws its own, clipped, below from the same interaction source.
+                    Modifier.clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        enabled = enabled,
+                        onClick = onClick
+                    )
+                } else {
+                    Modifier
+                }
+            ),
+        contentAlignment = anchor
+    ) {
+        Row(
+            Modifier
+                .height(PILL_HEIGHT)
+                .then(if (stretch) Modifier.fillMaxWidth() else Modifier)
+                // The state that reads as a color shift (ink vs. hue) needs its own semantics
+                // entry to reach a screen reader at all - color alone carries no signal there.
+                // Merging descendants folds the label/cap Text children into one announced unit
+                // ("LABEL, button") instead of TalkBack stopping on each one separately.
+                .semantics(mergeDescendants = true) {
+                    this.role = Role.Button
+                    this.selected = isSelected
+                }
+                .clip(RoundedCornerShape(percent = 50))
+                .background(bg)
+                .indication(interaction, LocalIndication.current)
+                .padding(start = 14.dp, end = 8.dp + extraEndPadding),
+            verticalAlignment = Alignment.CenterVertically,
+            // "Label and end-cap sit together at the right end of the pill, in that order, 9px
+            // apart" - the style guide's own literal gap value.
+            horizontalArrangement = Arrangement.spacedBy(9.dp, Alignment.End)
+        ) {
+            Text(
+                text = label.uppercase(),
+                color = fg,
+                // The style carries fontSize, lineHeight, weight and tracking together. The explicit
+                // lineHeight matters: without one the Text inherits the theme's fixed 24sp line box,
+                // which the fixed-height Row would clip.
+                style = type.pill,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End,
+                // weight(fill = false) lets a long label ellipsize before it squeezes the cap out;
+                // it is only valid in a bounded Row (a stretched stack pill). A crumb's Row sits in
+                // a horizontal scroller, where a weighted child would be measured at zero width.
+                modifier = (if (stretch) Modifier.weight(1f, fill = false) else Modifier).then(upright)
+            )
+            if (cap != null) {
+                Box(
+                    Modifier
+                        .height(PILL_CAP_HEIGHT)
+                        .defaultMinSize(minWidth = PILL_CAP_MIN_WIDTH)
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(capBg)
+                        .padding(horizontal = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = cap.uppercase(),
+                        color = capFg,
+                        style = type.pillCap,
+                        maxLines = 1,
+                        modifier = upright
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Sizes this element to [fraction] of the *reference width* - min(available width,
+ * [PillMetrics.MaxReferenceWidth]) - instead of `fillMaxWidth(fraction)`'s fraction of the whole
+ * screen. On a phone the two are identical; on a tablet or a wide window the pills keep their
+ * phone proportions rather than spanning 800dp. Like `fillMaxWidth(fraction)` it forces a tight
+ * width, so the offset / bleed modifiers after it still see the pill's own width as their maximum.
+ */
+private fun Modifier.widthByRef(fraction: Float) = layout { measurable, constraints ->
+    val maxPx = if (constraints.hasBoundedWidth) constraints.maxWidth else Int.MAX_VALUE
+    val refPx = minOf(maxPx, PillMetrics.MaxReferenceWidth.roundToPx())
+    val width = (refPx * fraction).roundToInt().coerceIn(constraints.minWidth, constraints.maxWidth)
+    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+    layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
+}
+
+/** Places this element [fraction] of the reference width in from the start edge (see
+ *  [widthByRef]), and measures it with only the width that is left of that inset. */
+private fun Modifier.insetStartByRef(fraction: Float) = layout { measurable, constraints ->
+    val maxPx = if (constraints.hasBoundedWidth) constraints.maxWidth else Int.MAX_VALUE
+    val refPx = minOf(maxPx, PillMetrics.MaxReferenceWidth.roundToPx())
+    val inset = (refPx * fraction).roundToInt().coerceAtLeast(0)
+    val remaining = if (constraints.hasBoundedWidth) (constraints.maxWidth - inset).coerceAtLeast(0) else constraints.maxWidth
+    val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = remaining))
+    layout(placeable.width, placeable.height) { placeable.placeRelative(inset, 0) }
+}
+
+private fun Modifier.absoluteBleed(by: Dp) = layout { measurable, constraints ->
+    val extra = by.roundToPx()
+    val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth + extra))
+    layout(placeable.width - extra, placeable.height) { placeable.placeRelative(-extra, 0) }
+}
+
+private fun Modifier.offsetByFractionOfParent(fraction: Float) = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    layout(placeable.width, placeable.height) {
+        placeable.placeRelative((constraints.maxWidth * fraction).toInt(), 0)
+    }
+}

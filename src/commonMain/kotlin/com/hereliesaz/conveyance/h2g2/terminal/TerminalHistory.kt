@@ -1,0 +1,47 @@
+package com.hereliesaz.conveyance.h2g2.terminal
+
+import com.hereliesaz.conveyance.h2g2.components.StyledSpan
+
+// D1 (HG2Gui Termux Coverage.dc.html): one contiguous run of same-styled text within one
+// terminal line, as parsed off the real shell's own ANSI/SGR escapes - not stripped, mapped.
+// [hue] indexes into H2g2.hues/caps (ui/menu/PillMenu.kt) when the source used a color this
+// maps to a named hue; null means "no mapped color" (an unrecognized 256-color/truecolor cell,
+// or the terminal's own default foreground) and renders in the surrounding text's normal ink.
+
+// Monotonic, session-independent - only needs to be unique among entries actually alive in some
+// buffer at once, which a plain incrementing counter guarantees regardless of how many terminal
+// sessions exist or how fast a buffer trims and refills.
+private var nextEntryId = 0L
+
+/**
+ * One command and what it printed: a card in [H2g2TerminalScreen]'s buffer. The screen creates and
+ * updates these itself as the host's `onRun` reports output; a host only builds them to pre-fill a
+ * [SessionUiState.buffer] (restored scrollback, sample data).
+ */
+data class TerminalHistoryEntry(
+    // Stable identity, independent of this entry's current position in a session's buffer - a
+    // long-running session trims its buffer's head past TerminalScreen's own MAX_BUFFER_ENTRIES,
+    // shifting every surviving entry's index. Keying UI state (LazyColumn rows, the expanded/
+    // showRaw toggles) off this instead of position keeps that state attached to the command it
+    // actually belongs to, rather than leaking onto whatever new command a trim hands the same
+    // composable slot to next.
+    val id: Long = nextEntryId++,
+    val command: String,
+    val output: String = "",
+    val isRunning: Boolean = false,
+    // Null while running, and stays null for the bootstrap/Builtins branches (neither is a real
+    // shell command with an exit status of its own) - only ever set once, in the same finally
+    // block that flips isRunning back to false.
+    val exitCode: Int? = null,
+    // D3: stays empty for the bootstrap/Builtins branches (neither has a real stderr of its own)
+    // and, on the real-shell branch, empty whenever ShellSession's pty tier is in use - a pty is
+    // one fd, so there is nothing to separate there. On the pipe tier this carries stderr's own
+    // cumulative transcript, kept apart from [output] rather than interleaved into it.
+    val stderr: String = "",
+    // D1: one entry per terminal row, in order, empty for the bootstrap/Builtins branches
+    // (neither produces real ANSI-styled output) and for a real shell command with no ANSI
+    // color/attribute escapes in it at all - OutputLines falls back to plain [output] text
+    // whenever this is empty, so an entry from before this existed, or with nothing to style,
+    // renders exactly as it always has.
+    val styledOutput: List<List<StyledSpan>> = emptyList()
+)

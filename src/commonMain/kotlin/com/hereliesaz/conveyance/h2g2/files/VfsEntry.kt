@@ -1,0 +1,131 @@
+package com.hereliesaz.conveyance.h2g2.files
+
+import com.hereliesaz.conveyance.h2g2.components.StyledSpan
+
+
+/**
+ * One node in the sandboxed filesystem, identified by an absolute path from the vfs root
+ * (e.g. "/Downloads/photo.png") - not a `java.io.File`, so this stays platform-agnostic and the
+ * actual I/O lives entirely on the Android side, reached only through the callbacks
+ * [H2g2FilesScreen] is handed.
+ */
+data class VfsEntry(
+    val name: String,
+    val path: String,
+    val isDirectory: Boolean,
+    val sizeBytes: Long,
+    val modifiedAt: Long = 0L,
+    val isImage: Boolean = false
+)
+
+/** [entry]'s own containing directory, so a search result can show where it lives. */
+data class VfsSearchResult(val entry: VfsEntry, val parentPath: String)
+
+/** One slice of the storage report: a content type ([label], e.g. "Images", "Documents", "Code",
+ *  "Archives", "Other" - the labels [H2g2StorageScreen] has a hue for) and the [bytes] it uses. */
+data class StorageCategoryStat(val label: String, val bytes: Long)
+
+/**
+ * A trashed item, as this commonMain screen needs it - a copy of managers/VfsManager.kt's own
+ * (androidMain-only) TrashEntry, the same "shared UI, platform-only I/O" boundary [VfsEntry]
+ * itself already draws. [id] is opaque here; restoring/purging still happens by handing the
+ * whole entry back to the platform callback, not by this screen re-deriving anything from it.
+ */
+data class VfsTrashEntry(
+    val id: String,
+    val originalPath: String,
+    val name: String,
+    val isDirectory: Boolean,
+    val sizeBytes: Long,
+    val deletedAtMillis: Long
+)
+
+/**
+ * The trash's own suspend lifecycle, bundled - [H2g2FilesScreen] threads these straight through to
+ * [H2g2StorageScreen] with no per-callback logic of its own, so they don't earn four separate
+ * parameter slots on a composable signature that's already long before they're added.
+ */
+data class TrashActions(
+    val items: suspend () -> List<VfsTrashEntry>,
+    val restore: suspend (VfsTrashEntry) -> Boolean,
+    val purge: suspend (VfsTrashEntry) -> Boolean,
+    val empty: suspend () -> Int
+)
+
+/** [H2g2StorageScreen]'s own trash tab: the current snapshot plus its three UI-thread actions
+ *  (already wrapped in `scope.launch` by the caller) - the same bundling [TrashActions] does,
+ *  one level down. */
+data class TrashPanelState(
+    val items: List<VfsTrashEntry> = emptyList(),
+    val onRestore: (VfsTrashEntry) -> Unit = {},
+    val onPurgeTrash: (VfsTrashEntry) -> Unit = {},
+    val onEmptyTrash: () -> Unit = {}
+)
+
+/**
+ * Real device storage as an opt-in alternative root, alongside (never instead of) the app's own
+ * private sandbox - the app works fully on the sandbox alone; this is what lets someone who wants
+ * more point the file explorer at their actual device storage instead. [active] is which root is
+ * currently in use; [granted] is whether the OS permission that makes [active]=true possible has
+ * actually been given. Tapping the toggle while `!granted` should ask for it (a Settings page on
+ * newer Android, a runtime dialog below that) rather than silently failing to switch.
+ */
+data class DeviceStorageState(
+    val active: Boolean,
+    val granted: Boolean,
+    val onToggle: () -> Unit
+)
+
+/** [totalCapacityBytes] and [usedCapacityBytes] are the real device/partition capacity and usage,
+ *  when the platform can supply them (e.g. via `StatFs` on Android) - null when it can't, since
+ *  commonMain has no cross-platform way to ask the OS how big the disk is or how full it is. The
+ *  header falls back to just the sandbox total when they're absent instead of pretending to know a
+ *  percentage it doesn't have. [usedCapacityBytes] is the partition's own used bytes (capacity
+ *  minus available) - deliberately NOT [totalBytes], which is only the sandbox's own contents and
+ *  would make "used of n GB" read as a near-zero percentage against the whole partition. */
+data class StorageStats(
+    val totalBytes: Long,
+    val byCategory: List<StorageCategoryStat>,
+    val largest: List<VfsEntry>,
+    val totalCapacityBytes: Long? = null,
+    val usedCapacityBytes: Long? = null
+)
+
+/** The parent path of [path] ("/a/b/c" -> "/a/b"; "/a" -> "/"). */
+fun vfsParentPath(path: String): String {
+    val trimmed = path.trimEnd('/')
+    val slash = trimmed.lastIndexOf('/')
+    return if (slash <= 0) "/" else trimmed.substring(0, slash)
+}
+
+/** Joins a directory path and a child name into a normalized absolute path. */
+fun vfsChildPath(parent: String, name: String): String {
+    val base = parent.trimEnd('/')
+    return if (base.isEmpty()) "/$name" else "$base/$name"
+}
+
+
+/** F3: a tapped file's own in-place preview - [text] is null for anything not readable as text
+ *  (a binary, or a read that failed), in which case the preview surface says what the file is
+ *  instead of appearing inert rather than attempting to render raw bytes. [styled] is non-empty
+ *  only when a highlighter was actually found installed and ran cleanly; empty means "render
+ *  [text] plain" - a pluggable highlighter that reports what's present, never assumed. [isMarkdown]
+ *  routes [text] through the markdown renderer instead of either plain or [styled] rendering. */
+data class FilePreview(
+    val text: String?,
+    val styled: List<List<StyledSpan>> = emptyList(),
+    val isMarkdown: Boolean = false,
+    val truncated: Boolean = false
+)
+
+/** [bytes] as the short size every files screen shows: "512 B", "12 KB", "3 MB", "1.4 GB".
+ *  Whole units below a gigabyte (rounded down), one decimal above. */
+fun formatFileSize(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+    bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
+    else -> {
+        val tenths = bytes / (1024L * 1024L * 1024L / 10L)
+        "${tenths / 10}.${tenths % 10} GB"
+    }
+}

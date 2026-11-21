@@ -1,7 +1,6 @@
 package com.hereliesaz.conveyance.h2g2
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 
 /**
  * The h2g2 hue system: a fixed, ordered palette plus a deterministic hash from any identifier to
@@ -38,6 +37,29 @@ object H2g2 {
     val ink: Color = Color(0xFF1E1A17)
     val white: Color = Color(0xFFFFFFFF)
 
+    /**
+     * The design system's `--yellow-bright`: the text/accent colour on [ink] (a selected pill, a
+     * trail crumb, a badge). Distinct from Mustard's page colour (#E8C81E), which is a ground.
+     */
+    val yellow: Color = Color(0xFFF0D42A)
+
+    /**
+     * A coordinated multi-hue combination pulled from a single film scene, for a screen that needs
+     * more than one hue to cohere (a header plus its pills) -- the style guide's "02b - Reference
+     * groupings". Picking freehand is the thing this replaces.
+     */
+    data class Grouping(val headerBg: Color, val hues: List<Color>)
+
+    val groupings: Map<String, Grouping> = mapOf(
+        "Vogon stage" to Grouping(Color(0xFF8B6420), listOf(Color(0xFFC6392F), Color(0xFF2E6FB7), Color(0xFF0F2447))),
+        "Oolon Colluphid" to Grouping(Color(0xFF8B3350), listOf(Color(0xFF2E6FB7), Color(0xFFD9A21C), Color(0xFFC9A45C))),
+        "Babel fish" to Grouping(Color(0xFF8B0021), listOf(Color(0xFFB03A6E), Color(0xFFD9762A), Color(0xFF8C6E4E))),
+        "Improbability party" to Grouping(Color(0xFF123A52), listOf(Color(0xFF5AAE34), Color(0xFFC6392F), Color(0xFF8E4FA8))),
+        "Improbability den" to Grouping(Color(0xFF4E7D6E), listOf(Color(0xFF8C6E4E), Color(0xFF8A9296), Color(0xFF365A4E))),
+        "Hyperspace" to Grouping(Color(0xFF163A63), listOf(Color(0xFF8A9296), Color(0xFFC9A45C), Color(0xFFC6392F))),
+        "Point-of-View Gun" to Grouping(Color(0xFFB03A6E), listOf(Color(0xFFC6392F), Color(0xFF5AAE34), Color(0xFF8B6420))),
+    )
+
     /** Deterministically maps any identifier to a [hues] index -- same id, same hue, every time. */
     fun hueOf(id: String): Int {
         // `mod`, not `%`: Int.MIN_VALUE has no positive two's-complement negation
@@ -62,8 +84,13 @@ object H2g2 {
         return if (named >= 0) named else hueOf(seed)
     }
 
-    private const val LEGIBLE_LUMINANCE_SPLIT = 0.35f
-
-    /** [ink] or [white], whichever reads legibly against this color. */
-    fun Color.contrastingText(): Color = if (luminance() > LEGIBLE_LUMINANCE_SPLIT) ink else white
+    /**
+     * [ink] or [white], whichever has the higher WCAG contrast ratio against this colour. Chosen
+     * by measurement, as HG2Gui does: a fixed luminance cutoff (this used to be 0.35) sits well
+     * above the true break-even of about 0.20, so cyan, green, gray, orange and teal got white at
+     * roughly 3:1 where ink gives better than 5:1. Not for a pill's selected state (ink + [yellow]),
+     * which is a fixed signal rather than text on an arbitrary background.
+     */
+    fun Color.contrastingText(): Color =
+        if (contrastRatio(this, ink) >= contrastRatio(this, white)) ink else white
 }

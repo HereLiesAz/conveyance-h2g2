@@ -365,7 +365,7 @@ fun H2g2SwarmTerrarium(
 
                 BasicText(
                     text = node.label.uppercase(),
-                    style = h2g2Type().endCap.copy(
+                    style = currentH2g2Type().endCap.copy(
                         color = H2g2.white,
                         textAlign = TextAlign.Center,
                     ),

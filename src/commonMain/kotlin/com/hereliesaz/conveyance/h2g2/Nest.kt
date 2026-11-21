@@ -197,7 +197,7 @@ fun H2g2Nest(
     val rodHeight by animateDpAsState(if (isRod) NestRodHeight else NEST_MIN_TOUCH, spec)
 
     val textColor = hue.contrastingText()
-    val type = h2g2Type()
+    val type = currentH2g2Type()
     val childGroup = remember(key) { NestGroupState() }
 
     if (isOpen) BackHandler(enabled = true) {
