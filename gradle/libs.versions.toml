@@ -1,5 +1,6 @@
 [versions]
-agp = "9.5.2"
+# Match the pinned Conveyance and host composite builds; Gradle rejects mixed AGP versions.
+agp = "9.5.1"
 gradle = "9.7.1"
 kotlin = "2.4.21"
 compose = "1.12.2"
