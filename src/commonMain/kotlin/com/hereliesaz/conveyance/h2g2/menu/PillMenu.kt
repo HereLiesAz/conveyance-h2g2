@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -86,6 +87,12 @@ import kotlin.math.roundToInt
 object PillMetrics {
     /** Height of the drawn capsule. */
     val Height: Dp = 32.dp
+
+    /** Compact visible capsule for dense host controls; the interactive target stays 48dp. */
+    val CompactHeight: Dp = 18.dp
+
+    /** Compact badge geometry, kept inside the visible capsule. */
+    val CompactCapHeight: Dp = 14.dp
 
     /** Distance between consecutive rows of a stack. Equal to [TouchTarget], so two rows' hit
      *  boxes tile exactly: no overlap, and no gap a thumb can fall into. */
@@ -1626,6 +1633,7 @@ private val PILL_CAP_MIN_WIDTH = 20.dp
  * capsule keeps its label and optional end cap together at the right, inside [touchTargetHeight].
  * Type comes from the active pill and pillCap tokens. [hue] indexes the house palette; the default
  * selected colours are Ink and Yellow. Use `stretch = false` for content-sized standalone pills.
+ * [compact] uses the dense 18dp capsule and 11sp labels without reducing the 48dp touch target.
  * [fillOverride], [textOverride], [capFillOverride] and [capTextOverride] let hosts supply their
  * own surface-aware colour policy. Supply a contrasting text colour for translucent fills.
  * [semanticRole], [spokenLabel] and [spokenState] preserve the host's accessibility contract.
@@ -1668,8 +1676,11 @@ fun Pill(
     semanticRole: Role = Role.Button,
     spokenLabel: String? = null,
     spokenState: String? = null,
+    compact: Boolean = false,
 ) {
     val type = currentH2g2Type()
+    val labelStyle = if (compact) type.pill.copy(fontSize = 11.sp, lineHeight = 14.sp) else type.pill
+    val capStyle = if (compact) type.pillCap.copy(fontSize = 11.sp, lineHeight = 14.sp) else type.pillCap
     // In a mirrored menu the stack's layer has turned this pill over; each piece of text turns
     // itself back about its own centre, so it reads normally at the mirrored position.
     val upright = Modifier.mirrored(LocalPillMenuPlacement.current)
@@ -1720,16 +1731,16 @@ fun Pill(
     ) {
         Row(
             Modifier
-                .height(PILL_HEIGHT)
+                .height(if (compact) PillMetrics.CompactHeight else PILL_HEIGHT)
                 .then(if (stretch) Modifier.fillMaxWidth() else Modifier)
                 .clip(RoundedCornerShape(percent = 50))
                 .background(bg)
                 .indication(interaction, LocalIndication.current)
-                .padding(start = 14.dp, end = 8.dp + extraEndPadding),
+                .padding(start = if (compact) 9.dp else 14.dp, end = (if (compact) 6.dp else 8.dp) + extraEndPadding),
             verticalAlignment = Alignment.CenterVertically,
             // "Label and end-cap sit together at the right end of the pill, in that order, 9px
             // apart" - the style guide's own literal gap value.
-            horizontalArrangement = Arrangement.spacedBy(9.dp, Alignment.End)
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 5.dp else 9.dp, Alignment.End)
         ) {
             Text(
                 text = label.uppercase(),
@@ -1737,7 +1748,7 @@ fun Pill(
                 // The style carries fontSize, lineHeight, weight and tracking together. The explicit
                 // lineHeight matters: without one the Text inherits the theme's fixed 24sp line box,
                 // which the fixed-height Row would clip.
-                style = type.pill,
+                style = labelStyle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.End,
@@ -1749,17 +1760,17 @@ fun Pill(
             if (cap != null) {
                 Box(
                     Modifier
-                        .height(PILL_CAP_HEIGHT)
-                        .defaultMinSize(minWidth = PILL_CAP_MIN_WIDTH)
+                        .height(if (compact) PillMetrics.CompactCapHeight else PILL_CAP_HEIGHT)
+                        .defaultMinSize(minWidth = if (compact) 14.dp else PILL_CAP_MIN_WIDTH)
                         .clip(RoundedCornerShape(percent = 50))
                         .background(capBg)
-                        .padding(horizontal = 6.dp),
+                        .padding(horizontal = if (compact) 4.dp else 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = cap.uppercase(),
                         color = capFg,
-                        style = type.pillCap,
+                        style = capStyle,
                         maxLines = 1,
                         modifier = upright
                     )

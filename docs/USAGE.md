@@ -131,7 +131,10 @@ hosts the stack can size its region from the same numbers.
 
 Hosts that need the exact command-stack capsule without the terminal navigation use
 `menu.Pill`. Pass `stretch = false` for a content-sized control. The library owns the label/cap
-geometry, type and interaction; hosts own the action and can override the colours and accessibility
+geometry, type and interaction. Use `compact = true` for dense standalone controls: the painted pill
+is 18dp high, the label and cap are 11sp, and the touch target remains 48dp. This is the compact
+appearance of the earlier HG2Gui command stack; the current command menu's default stays unchanged.
+Hosts own the action and can override the colours and accessibility
 role, label and state for their own surfaces. The default palette and selected pairing remain the
 command stack's. For custom translucent fills, supply a foreground that contrasts with the
 composited surface.
