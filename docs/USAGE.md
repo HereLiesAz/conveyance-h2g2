@@ -127,6 +127,26 @@ mirror with it; labels stay upright; taps land where the pills are drawn.
 `PillMetrics` (`Height`, `RowPitch`, `TouchTarget`, `MaxReferenceWidth`) is public so a layout that
 hosts the stack can size its region from the same numbers.
 
+### Standalone pills
+
+Hosts that need the exact command-stack capsule without the terminal navigation use
+`menu.Pill`. Pass `stretch = false` for a content-sized control. The library owns the label/cap
+geometry, type and interaction; hosts own the action and can override the colours and accessibility
+role, label and state for their own surfaces. The default palette and selected pairing remain the
+command stack's. For custom translucent fills, supply a foreground that contrasts with the
+composited surface.
+
+~~~kotlin
+Pill(
+    label = "Story",
+    cap = "3",
+    hue = H2g2.hueOf("story"),
+    selected = false,
+    stretch = false,
+    onClick = { openStory() },
+)
+~~~
+
 ## File manager
 
 `files.H2g2FilesScreen`. Folders are tiles; tapping one morphs it open into a card while its
