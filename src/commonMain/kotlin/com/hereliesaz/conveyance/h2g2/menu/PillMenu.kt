@@ -57,6 +57,8 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -1620,15 +1622,18 @@ private val PILL_CAP_HEIGHT = 20.dp
 private val PILL_CAP_MIN_WIDTH = 20.dp
 
 /**
- * One pill: a [PillMetrics.Height] capsule with its label and optional end-cap anchored at the
- * right, centred vertically inside a [touchTargetHeight] hit box. Label and cap sizes come from the
- * `pill` / `pillCap` tokens of [currentH2g2Type]; text colour is whichever of Ink/White has the
- * higher contrast against the fill. [onClick] (when given) is handled on the whole hit box, with
- * the press indication clipped to the capsule rather than the rectangle.
+ * The HG2Gui pill shared by the command menu and host applications. The [PillMetrics.Height]
+ * capsule keeps its label and optional end cap together at the right, inside [touchTargetHeight].
+ * Type comes from the active pill and pillCap tokens. [hue] indexes the house palette; the default
+ * selected colours are Ink and Yellow. Use `stretch = false` for content-sized standalone pills.
+ * [fillOverride], [textOverride], [capFillOverride] and [capTextOverride] let hosts supply their
+ * own surface-aware colour policy. Supply a contrasting text colour for translucent fills.
+ * [semanticRole], [spokenLabel] and [spokenState] preserve the host's accessibility contract.
+ * [onClick] acts on the whole hit box, with press indication clipped to the capsule.
  */
 @Suppress("LongParameterList")
 @Composable
-internal fun Pill(
+fun Pill(
     label: String,
     cap: String?,
     hue: Int,
@@ -1655,20 +1660,27 @@ internal fun Pill(
     // outgrows the 56dp floor has no padding buffer, so the next crumb's overlap would land on its
     // trailing glyphs. Padding the content out by the overlap amount guarantees real, opaque space
     // back there for every crumb, long or short.
-    extraEndPadding: Dp = 0.dp
+    extraEndPadding: Dp = 0.dp,
+    fillOverride: Color? = null,
+    textOverride: Color? = null,
+    capFillOverride: Color? = null,
+    capTextOverride: Color? = null,
+    semanticRole: Role = Role.Button,
+    spokenLabel: String? = null,
+    spokenState: String? = null,
 ) {
     val type = currentH2g2Type()
     // In a mirrored menu the stack's layer has turned this pill over; each piece of text turns
     // itself back about its own centre, so it reads normally at the mirrored position.
     val upright = Modifier.mirrored(LocalPillMenuPlacement.current)
-    val bg = if (selected) H2g2.ink else H2g2.hues[hue]
-    val capBg = if (selected) H2g2.yellow else H2g2.caps[hue]
+    val bg = fillOverride ?: if (selected) H2g2.ink else H2g2.hues[hue]
+    val capBg = capFillOverride ?: if (selected) H2g2.yellow else H2g2.caps[hue]
     // Selected is a fixed ink-bg/yellow-fg UI signal, not "text on an arbitrary background" - it
     // keeps its own fixed pairing. Unselected sits on this pill's own hue/cap, which never rotates
     // but spans light (amber, tan) to dark (violet, teal): the text is whichever of Ink/White
     // measures better on that exact fill (see contrastingText), not a fixed White.
-    val fg = if (selected) H2g2.yellow else HUE_TEXT[hue]
-    val capFg = if (selected) H2g2.ink else CAP_TEXT[hue]
+    val fg = textOverride ?: if (fillOverride != null) bg.contrastingText() else if (selected) H2g2.yellow else HUE_TEXT[hue]
+    val capFg = capTextOverride ?: if (capFillOverride != null) capBg.contrastingText() else if (selected) H2g2.ink else CAP_TEXT[hue]
     // Local copy so the semantics block below reads the parameter, not its own
     // SemanticsPropertyReceiver.selected property of the same name.
     val isSelected = selected
@@ -1683,6 +1695,12 @@ internal fun Pill(
     Box(
         modifier
             .defaultMinSize(minHeight = touchTargetHeight)
+            .semantics(mergeDescendants = true) {
+                this.role = semanticRole
+                this.selected = isSelected
+                spokenLabel?.let { contentDescription = it }
+                spokenState?.let { stateDescription = it }
+            }
             .then(
                 if (onClick != null) {
                     // indication = null: the default ripple would paint the whole hit rectangle; the
@@ -1691,6 +1709,7 @@ internal fun Pill(
                         interactionSource = interaction,
                         indication = null,
                         enabled = enabled,
+                        role = semanticRole,
                         onClick = onClick
                     )
                 } else {
@@ -1703,14 +1722,6 @@ internal fun Pill(
             Modifier
                 .height(PILL_HEIGHT)
                 .then(if (stretch) Modifier.fillMaxWidth() else Modifier)
-                // The state that reads as a color shift (ink vs. hue) needs its own semantics
-                // entry to reach a screen reader at all - color alone carries no signal there.
-                // Merging descendants folds the label/cap Text children into one announced unit
-                // ("LABEL, button") instead of TalkBack stopping on each one separately.
-                .semantics(mergeDescendants = true) {
-                    this.role = Role.Button
-                    this.selected = isSelected
-                }
                 .clip(RoundedCornerShape(percent = 50))
                 .background(bg)
                 .indication(interaction, LocalIndication.current)

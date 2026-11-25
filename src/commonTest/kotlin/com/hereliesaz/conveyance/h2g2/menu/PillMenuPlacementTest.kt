@@ -2,6 +2,12 @@ package com.hereliesaz.conveyance.h2g2.menu
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
@@ -67,6 +73,39 @@ class PillMenuPlacementTest {
                 assertTrue(pill.bottom > 0.dp && pill.top < height, "placement $placement: pill is on screen")
             }
         }
+    }
+
+    @Test
+    fun standalonePillPreservesHostSemanticsAndInput() = runComposeUiTest {
+        var clicks = 0
+        setContent {
+            H2g2Theme {
+                Pill(
+                    label = "story", cap = "3", hue = 0, selected = true,
+                    stretch = false, onClick = { clicks++ },
+                    fillOverride = Color.White, textOverride = Color.Black,
+                    semanticRole = Role.Tab, spokenLabel = "Story: 3", spokenState = "Tab 1 of 2",
+                )
+            }
+        }
+        val control = onNodeWithContentDescription("Story: 3")
+        control.assertIsSelected()
+        assertEquals(Role.Tab, control.fetchSemanticsNode().config[SemanticsProperties.Role])
+        assertEquals("Tab 1 of 2", control.fetchSemanticsNode().config[SemanticsProperties.StateDescription])
+        assertTrue(control.getBoundsInRoot().height >= 48.dp)
+        control.performClick()
+        runOnIdle { assertEquals(1, clicks) }
+    }
+
+    @Test
+    fun standaloneDisabledPillExposesDisabledState() = runComposeUiTest {
+        setContent {
+            H2g2Theme {
+                Pill(label = "stop", cap = null, hue = 0, selected = false, stretch = false,
+                    enabled = false, spokenLabel = "Stop", onClick = { error("Disabled pill clicked") })
+            }
+        }
+        onNodeWithContentDescription("Stop").assertIsNotEnabled()
     }
 
     private companion object {
