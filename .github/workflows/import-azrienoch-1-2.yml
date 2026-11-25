@@ -31,7 +31,7 @@ jobs:
           ]:
               with TTFont(source, recalcTimestamp=False) as variable:
                   assert {a.axisTag for a in variable["fvar"].axes} == {"wght", "wdth", "SERF", "GRAD"}
-                  static = instantiateVariableFont(variable, {"wght": weight, "wdth": width, "SERF": 0, "GRAD": 0}, inplace=True, updateFontNames=True)
+                  static = instantiateVariableFont(variable, {"wght": weight, "wdth": width, "SERF": 0, "GRAD": 0}, inplace=True, updateFontNames=False)
                   assert "fvar" not in static
                   assert static["OS/2"].usWeightClass == weight
                   if width == 0:
