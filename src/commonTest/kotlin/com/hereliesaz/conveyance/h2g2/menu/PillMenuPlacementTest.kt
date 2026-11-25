@@ -108,6 +108,25 @@ class PillMenuPlacementTest {
         onNodeWithContentDescription("Stop").assertIsNotEnabled()
     }
 
+    @Test
+    fun compactStandalonePillKeepsFullTapTargetAndUsesLessWidth() = runComposeUiTest {
+        setContent {
+            H2g2Theme {
+                androidx.compose.foundation.layout.Column {
+                    Pill("Story", "3", 0, false, stretch = false, onClick = {},
+                        spokenLabel = "Standard")
+                    Pill("Story", "3", 0, false, stretch = false, onClick = {},
+                        spokenLabel = "Compact", compact = true)
+                }
+            }
+        }
+        val normal = onNodeWithContentDescription("Standard").getBoundsInRoot()
+        val compact = onNodeWithContentDescription("Compact").getBoundsInRoot()
+        assertEquals(48.dp, compact.height)
+        assertEquals(normal.height, compact.height)
+        assertTrue(compact.width < normal.width)
+    }
+
     private companion object {
         // Longer than any entrance, leave or cascade, so each step starts from a settled stack.
         const val SETTLE_MS = 3_000L
