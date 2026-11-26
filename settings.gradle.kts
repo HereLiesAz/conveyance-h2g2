@@ -13,23 +13,24 @@ plugins {
 
 rootProject.name = "conveyance-h2g2"
 
-val localConveyance = file("vendor/Conveyance")
-if (localConveyance.exists()) {
-    includeBuild(localConveyance) {
-        dependencySubstitution {
-            substitute(module("com.github.HereLiesAz.Conveyance:conveyance-core"))
-                .using(project(":conveyance-core"))
-            substitute(module("com.github.HereLiesAz.Conveyance:conveyance-compose"))
-                .using(project(":conveyance-compose"))
-        }
-    }
-}
-
 dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://jitpack.io")
+        exclusiveContent {
+            forRepository {
+                maven("https://maven.pkg.github.com/HereLiesAz/Conveyance") {
+                    credentials {
+                        username = providers.environmentVariable("GITHUB_ACTOR").orNull
+                        password = providers.environmentVariable("GH_TOKEN")
+                            .orElse(providers.environmentVariable("GITHUB_TOKEN")).orNull
+                    }
+                }
+            }
+            filter {
+                includeGroup("com.hereliesaz.conveyance")
+            }
+        }
         maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
     }
 }
