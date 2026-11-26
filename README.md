@@ -18,24 +18,16 @@ Targets Android, desktop JVM, JS and Wasm. No Material dependency.
 
 ~~~kotlin
 repositories {
-    maven("https://maven.pkg.github.com/HereLiesAz/conveyance-h2g2") {
-        credentials {
-            username = System.getenv("GITHUB_ACTOR")
-            password = System.getenv("GH_TOKEN")
-        }
-    }
     maven("https://jitpack.io") {
-        content { includeGroupAndSubgroups("com.github.HereLiesAz.Conveyance") }
+        content { includeGroupAndSubgroups("com.github.HereLiesAz") }
     }
 }
 dependencies {
-    implementation("com.hereliesaz.conveyance:conveyance-h2g2:0.7.2")
+    implementation("com.github.HereLiesAz:conveyance-h2g2:<release-tag>")
 }
 ~~~
 
-GitHub Packages is the publication destination for Android, desktop JVM, JS, Wasm and common metadata.
-Use a token with package read access and the matching GitHub username. A release is available only
-after its publication workflow succeeds. The library resolves its own Conveyance dependency from public JitPack release tags using its version catalog. Consumers also need the scoped JitPack repository. The JitPack h2g2 publication itself currently covers Android, desktop and common metadata; its web variants require the separate multiplatform publication.
+JitPack publishes common metadata and Android, desktop JVM, JS and Wasm library variants from the same tag. Browser applications link executable bundles themselves. Use a tag with a successful complete publication; the 0.7.4 tag predates this publication fix. Conveyance is resolved transitively from its public JitPack release.
 
 ~~~kotlin
 H2g2Theme {

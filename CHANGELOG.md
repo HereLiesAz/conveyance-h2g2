@@ -3,6 +3,10 @@
 Versions are `major.minor.patch.build` from `version.properties`. JitPack release tags are listed
 where one exists.
 
+## Unreleased
+
+- Publish every Kotlin Multiplatform library variant through JitPack. JS and Wasm are library targets, not executable applications, so application linking and npm installation belong to consumers.
+
 ## 0.1.0 — the HG2Gui port
 
 HG2Gui's design (at `0d8edf6`) as callable composables. Not yet tagged; resolve `main-SNAPSHOT`.
