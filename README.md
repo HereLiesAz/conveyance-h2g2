@@ -24,11 +24,8 @@ repositories {
             password = System.getenv("GH_TOKEN")
         }
     }
-    maven("https://maven.pkg.github.com/HereLiesAz/Conveyance") {
-        credentials {
-            username = System.getenv("GITHUB_ACTOR")
-            password = System.getenv("GH_TOKEN")
-        }
+    maven("https://jitpack.io") {
+        content { includeGroupAndSubgroups("com.github.HereLiesAz.Conveyance") }
     }
 }
 dependencies {
@@ -38,8 +35,7 @@ dependencies {
 
 GitHub Packages is the publication destination for Android, desktop JVM, JS, Wasm and common metadata.
 Use a token with package read access and the matching GitHub username. A release is available only
-after its publication workflow succeeds. The library resolves its own Conveyance dependency from
-the same Maven publication system, using its version catalog.
+after its publication workflow succeeds. The library resolves its own Conveyance dependency from public JitPack release tags using its version catalog. Consumers also need the scoped JitPack repository. The JitPack h2g2 publication itself currently covers Android, desktop and common metadata; its web variants require the separate multiplatform publication.
 
 ~~~kotlin
 H2g2Theme {
