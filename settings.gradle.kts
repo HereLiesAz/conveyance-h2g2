@@ -21,7 +21,7 @@ dependencyResolutionManagement {
         // including when JitPack itself builds h2g2.
         exclusiveContent {
             forRepository { maven("https://jitpack.io") }
-            filter { includeGroupAndSubgroups("com.github.HereLiesAz.Conveyance") }
+            filter { includeGroupAndSubgroups("com.github.HereLiesAz.conveyance") }
         }
         maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
     }
