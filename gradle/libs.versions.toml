@@ -9,7 +9,7 @@ compileSdkMinor = "1"
 minSdk = "24"
 jvmToolchain = "21"
 # Published Conveyance multiplatform release; all targets use the same version.
-conveyance = "0.5.0"
+conveyance = "0.5.2"
 
 [libraries]
 conveyance-core = { module = "com.hereliesaz.conveyance:conveyance-core", version.ref = "conveyance" }
