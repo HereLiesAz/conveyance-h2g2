@@ -92,7 +92,8 @@ class PillMenuPlacementTest {
         control.assertIsSelected()
         assertEquals(Role.Tab, control.fetchSemanticsNode().config[SemanticsProperties.Role])
         assertEquals("Tab 1 of 2", control.fetchSemanticsNode().config[SemanticsProperties.StateDescription])
-        assertTrue(control.getBoundsInRoot().height >= 48.dp)
+        val bounds = control.getBoundsInRoot()
+        assertTrue(bounds.bottom - bounds.top >= 48.dp)
         control.performClick()
         runOnIdle { assertEquals(1, clicks) }
     }
@@ -122,9 +123,9 @@ class PillMenuPlacementTest {
         }
         val normal = onNodeWithContentDescription("Standard").getBoundsInRoot()
         val compact = onNodeWithContentDescription("Compact").getBoundsInRoot()
-        assertEquals(48.dp, compact.height)
-        assertEquals(normal.height, compact.height)
-        assertTrue(compact.width < normal.width)
+        assertEquals(48.dp, compact.bottom - compact.top)
+        assertEquals(normal.bottom - normal.top, compact.bottom - compact.top)
+        assertTrue(compact.right - compact.left < normal.right - normal.left)
     }
 
     private companion object {
