@@ -32,7 +32,7 @@ repositories {
     }
 }
 dependencies {
-    implementation("com.hereliesaz.conveyance:conveyance-h2g2:0.7.1")
+    implementation("com.hereliesaz.conveyance:conveyance-h2g2:0.7.2")
 }
 ~~~
 
