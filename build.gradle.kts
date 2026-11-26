@@ -30,15 +30,10 @@ kotlin {
         androidResources { enable = true }
     }
     jvm("desktop")
-    js {
-        browser()
-        binaries.executable()
-    }
+    // Published library targets, not executable browser applications. Consumers own linking and npm installation.
+    js { browser() }
     @OptIn(ExperimentalWasmDsl::class)
-    wasmJs {
-        browser()
-        binaries.executable()
-    }
+    wasmJs { browser() }
 
     sourceSets {
         commonMain.dependencies {

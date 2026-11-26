@@ -12,8 +12,8 @@ jvmToolchain = "21"
 conveyance = "0.5.2"
 
 [libraries]
-conveyance-core = { module = "com.github.HereLiesAz.Conveyance:conveyance-core", version.ref = "conveyance" }
-conveyance-compose = { module = "com.github.HereLiesAz.Conveyance:conveyance-compose", version.ref = "conveyance" }
+conveyance-core = { module = "com.github.HereLiesAz.conveyance:conveyance-core", version.ref = "conveyance" }
+conveyance-compose = { module = "com.github.HereLiesAz.conveyance:conveyance-compose", version.ref = "conveyance" }
 
 [plugins]
 compose = { id = "org.jetbrains.compose", version.ref = "compose" }
