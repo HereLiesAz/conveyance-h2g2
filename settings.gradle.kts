@@ -17,19 +17,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Conveyance release tags are published publicly by JitPack. No credentials are needed,
+        // including when JitPack itself builds h2g2.
         exclusiveContent {
-            forRepository {
-                maven("https://maven.pkg.github.com/HereLiesAz/Conveyance") {
-                    credentials {
-                        username = providers.environmentVariable("GITHUB_ACTOR").orNull
-                        password = providers.environmentVariable("GH_TOKEN")
-                            .orElse(providers.environmentVariable("GITHUB_TOKEN")).orNull
-                    }
-                }
-            }
-            filter {
-                includeGroup("com.hereliesaz.conveyance")
-            }
+            forRepository { maven("https://jitpack.io") }
+            filter { includeGroupAndSubgroups("com.github.HereLiesAz.Conveyance") }
         }
         maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
     }
