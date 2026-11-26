@@ -12,11 +12,12 @@ plugins {
 group = "com.hereliesaz.conveyance"
 // Read from version.properties, the same file CI stamps releases from. JitPack overrides both
 // group and version from the git ref it builds; this is what a local `publishToMavenLocal` produces.
-version = Properties().run {
+val localVersion = Properties().run {
     file("version.properties").inputStream().use { load(it) }
     listOf("versionMajor", "versionMinor", "versionPatch", "versionBuild")
         .joinToString(".") { getProperty(it).trim() }
 }
+version = providers.gradleProperty("publicationVersion").orElse(localVersion).get()
 
 kotlin {
     jvmToolchain(libs.versions.jvmToolchain.get().toInt())
@@ -84,6 +85,18 @@ compose.resources {
 // Kotlin Multiplatform registers one publication per target on its own; there is nothing to
 // create here, only a shared description for whichever one a consumer ends up resolving.
 publishing {
+    if (providers.gradleProperty("publicationVersion").isPresent) {
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/HereLiesAz/conveyance-h2g2")
+                credentials {
+                    username = System.getenv("GITHUB_ACTOR")
+                    password = System.getenv("GITHUB_TOKEN")
+                }
+            }
+        }
+    }
     publications.withType<MavenPublication>().configureEach {
         pom {
             name.set("Conveyance h2g2")

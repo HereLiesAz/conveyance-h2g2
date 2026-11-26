@@ -18,20 +18,28 @@ Targets Android, desktop JVM, JS and Wasm. No Material dependency.
 
 ~~~kotlin
 repositories {
-    maven("https://jitpack.io")
+    maven("https://maven.pkg.github.com/HereLiesAz/conveyance-h2g2") {
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")
+            password = System.getenv("GH_TOKEN")
+        }
+    }
+    maven("https://maven.pkg.github.com/HereLiesAz/Conveyance") {
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")
+            password = System.getenv("GH_TOKEN")
+        }
+    }
 }
 dependencies {
-    implementation("com.github.HereLiesAz:conveyance-h2g2:main-SNAPSHOT")
+    implementation("com.hereliesaz.conveyance:conveyance-h2g2:0.7.1")
 }
 ~~~
 
-Resolved via [JitPack](https://jitpack.io) directly from this repository. The HG2Gui port landed on
-`main` after the `0.5.1` tag, so `0.5.1` is the tokens, templates, nest and workflow only; take
-`main-SNAPSHOT`, or a commit hash, for the surfaces until the next tag.
-
-This artifact pins its own dependency on Conveyance to the `0.5.0` tag, not to `main-SNAPSHOT`: a
-floating snapshot makes KMP metadata non-reproducible and can resolve stale per-target publications
-through JitPack.
+GitHub Packages is the publication destination for Android, desktop JVM, JS, Wasm and common metadata.
+Use a token with package read access and the matching GitHub username. A release is available only
+after its publication workflow succeeds. The library resolves its own Conveyance dependency from
+the same Maven publication system, using its version catalog.
 
 ~~~kotlin
 H2g2Theme {
