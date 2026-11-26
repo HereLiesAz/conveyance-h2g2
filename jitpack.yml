@@ -17,4 +17,4 @@ before_install:
 # libstdc++). Removing executable binaries lets consumers link their own applications.
 # Do not exclude web publications or invoke the nonexistent root test task.
 install:
-  - ./gradlew publishAllPublicationsToMavenLocal
+  - ./gradlew publishToMavenLocal
